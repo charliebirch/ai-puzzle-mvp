@@ -24,30 +24,66 @@ def add_puzzle_grid(image, grid_size=(8, 8)):
 
     return image
 
-def transform_with_ai(image_path, prompt="magical fairy tale scene, enchanted forest, fantasy art style"):
-    """Transform image using Replicate's Stable Diffusion"""
-    print(f"🎨 Transforming image with AI...")
-    print(f"   Prompt: {prompt}")
+def transform_person_to_character(image_path, character_theme):
+    """
+    STEP 1: Transform person into a character based on theme
+    Uses ByteDance SeerAI Dream-4 model
+    """
+    print(f"👤 STEP 1: Transforming person into {character_theme} character...")
+    print(f"   Prompt: {character_theme}")
 
-    # Use Stable Diffusion 3.5 for image-to-image transformation
+    # Pass file handle directly - Replicate will handle upload
+    print("   Processing image...")
     output = replicate.run(
-        "stability-ai/stable-diffusion-3.5-large",
+        "bytedance/seedream-4",
         input={
-            "image": open(image_path, "rb"),
-            "prompt": prompt,
-            "prompt_strength": 0.6,  # 0.4 = preserve more original, 0.8 = more AI transformation
-            "output_format": "png",
-            "output_quality": 95
+            "prompt": character_theme,
+            "image_input": [open(image_path, "rb")],  # Pass file handle directly
+            "size": "1K",
+            "aspect_ratio": "match_input_image",
+            "enhance_prompt": True
         }
     )
 
     return output
 
-def create_magical_puzzle(input_path, output_path, transformation_prompt=None):
+def place_character_in_world(character_image_path, world_prompt):
     """
-    Main function: Load image → AI transform → Add puzzle grid → Save
+    STEP 2: Place the character into a magical world scene
+    Uses ByteDance SeerAI Dream-4 model
     """
-    print(f"🚀 Starting puzzle creation...")
+    print(f"🌍 STEP 2: Placing character into magical world...")
+    print(f"   Prompt: {world_prompt}")
+
+    # Pass file handle directly - Replicate will handle upload
+    print("   Processing character image...")
+    output = replicate.run(
+        "bytedance/seedream-4",
+        input={
+            "prompt": world_prompt,
+            "image_input": [open(character_image_path, "rb")],  # Pass file handle directly
+            "size": "1K",
+            "aspect_ratio": "match_input_image",
+            "enhance_prompt": True
+        }
+    )
+
+    return output
+
+def create_magical_puzzle(input_path, output_path, character_theme=None, world_prompt=None):
+    """
+    Main function: Load image → Transform to character → Place in world → Add puzzle grid → Save
+
+    Args:
+        input_path: Path to the person's photo
+        output_path: Where to save the final puzzle
+        character_theme: Theme for character transformation (e.g., "fairy tale princess with sparkles")
+        world_prompt: Description of the magical world scene (e.g., "enchanted forest with castle")
+    """
+    import requests
+    from io import BytesIO
+
+    print(f"🚀 Starting two-step magical puzzle creation...")
     print(f"   Input: {input_path}")
 
     # Step 1: Load and validate image
@@ -70,33 +106,84 @@ def create_magical_puzzle(input_path, output_path, transformation_prompt=None):
     os.makedirs("output", exist_ok=True)
     img.save(temp_path, quality=95)
 
-    # Step 2: AI Transformation
-    if transformation_prompt:
+    # Step 2: AI Transformation (Two-step process)
+    if character_theme and world_prompt:
         try:
-            result_url = transform_with_ai(temp_path, transformation_prompt)
+            # STEP 1: Transform person to character
+            print("\n" + "="*60)
+            character_url = transform_person_to_character(temp_path, character_theme)
 
-            # Download transformed image
-            print("⬇️  Downloading transformed image...")
-            import requests
-            from io import BytesIO
+            # Download character image
+            print("⬇️  Downloading character image...")
+            if isinstance(character_url, list):
+                character_url = character_url[0]
 
-            if isinstance(result_url, list):
-                result_url = result_url[0]
+            # LESSON LEARNED: Replicate API returns different types depending on version/config
+            # - Might be a plain string URL
+            # - Might be a FileOutput object with .url() method
+            # - Might be a FileOutput object with .url property (not callable)
+            # Always handle all three cases to avoid "'str' object is not callable" errors
+            if isinstance(character_url, str):
+                image_url = character_url
+            elif hasattr(character_url, 'url'):
+                # Check if url is a method or property
+                url_attr = getattr(character_url, 'url')
+                if callable(url_attr):
+                    image_url = url_attr()
+                else:
+                    image_url = url_attr
+            else:
+                image_url = str(character_url)
 
-            response = requests.get(str(result_url))
+            response = requests.get(image_url)
+            character_img = Image.open(BytesIO(response.content))
+
+            # Save intermediate character image
+            character_path = "output/character_intermediate.png"
+            character_img.save(character_path, quality=95)
+            print(f"✅ Character transformation complete! Saved to {character_path}")
+
+            # STEP 2: Place character in magical world
+            print("\n" + "="*60)
+            world_url = place_character_in_world(character_path, world_prompt)
+
+            # Download final world image
+            print("⬇️  Downloading final magical world image...")
+            if isinstance(world_url, list):
+                world_url = world_url[0]
+
+            # Get URL - handle multiple cases
+            if isinstance(world_url, str):
+                image_url = world_url
+            elif hasattr(world_url, 'url'):
+                # Check if url is a method or property
+                url_attr = getattr(world_url, 'url')
+                if callable(url_attr):
+                    image_url = url_attr()
+                else:
+                    image_url = url_attr
+            else:
+                image_url = str(world_url)
+
+            response = requests.get(image_url)
             img = Image.open(BytesIO(response.content))
-            print("✅ AI transformation complete!")
+            print("✅ World placement complete!")
+            print("="*60 + "\n")
 
         except Exception as e:
             print(f"⚠️  AI transformation failed: {e}")
             print("   Continuing with original image...")
+
+    elif character_theme or world_prompt:
+        print("⚠️  Warning: Both character_theme AND world_prompt required for AI transformation")
+        print("   Skipping AI transformation...")
 
     # Step 3: Add puzzle grid overlay
     print("🧩 Adding puzzle grid...")
     img = add_puzzle_grid(img, grid_size=(8, 8))
 
     # Step 4: Save final result
-    print(f"💾 Saving to {output_path}...")
+    print(f"💾 Saving final puzzle to {output_path}...")
     img.save(output_path, quality=95)
 
     print("✨ Done! Your magical puzzle is ready!")
@@ -104,12 +191,20 @@ def create_magical_puzzle(input_path, output_path, transformation_prompt=None):
 
 if __name__ == "__main__":
     # Example usage
-    INPUT_IMAGE = "input/family_photo.jpg"  # Change this to your test image
+    INPUT_IMAGE = "input/charlie-test.jpeg"  # Change this to your test image
     OUTPUT_IMAGE = "output/magical_puzzle.png"
+
+    # Two-step AI transformation
+    # Step 1: Transform person into a character
+    CHARACTER_THEME = "Create an 8-bit character card in the theme of fairy tale prince with magical outfit, crown, sparkles, fantasy style. It should be a full person, standing face on like a pokemon card for example."
+
+    # Step 2: Place character in a magical world
+    WORLD_SCENE = "Place this 8-bit character into enchanted forest with glowing castle in background, magical atmosphere, vibrant fantasy colors, ethereal lighting surrounded by magical wildlife. This image will be used as a puzzle so it needs to be full of life and varied and high quality"
 
     # Run the full pipeline
     create_magical_puzzle(
         input_path=INPUT_IMAGE,
         output_path=OUTPUT_IMAGE,
-        transformation_prompt="magical fairy tale scene, fantasy kingdom, vibrant colors, enchanted forest background"
+        character_theme=CHARACTER_THEME,
+        world_prompt=WORLD_SCENE
     )
