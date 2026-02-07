@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preview - {{ job.id }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <main class="container">
+        <h1>Preview: {{ job.id }}</h1>
+        <p>Style: {{ job.style }} | Backend: {{ job.backend }} | {{ job.puzzle_size }} pieces</p>
+
+        {% if job.quality_score %}
+        {% set passed = job.quality_score >= 70 %}
+        <p>
+            Quality: <strong>{{ "%.1f"|format(job.quality_score) }}/100</strong>
+            <span class="badge {{ 'badge-pass' if passed else 'badge-fail' }}">{{ "PASS" if passed else "FAIL" }}</span>
+            {% if job.meta and job.meta.manifest %}
+            | Cost: <strong>${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}</strong>
+            {% endif %}
+        </p>
+        {% endif %}
+
+        <div class="grid">
+            <article>
+                <h3>Original Photo</h3>
+                <img src="/image/{{ job.id }}/original" alt="Original photo" class="preview-img">
+            </article>
+            <article>
+                <h3>AI Generated</h3>
+                <img src="/image/{{ job.id }}/generated" alt="Generated character" class="preview-img">
+            </article>
+        </div>
+
+        {% if job.preview_path %}
+        <article>
+            <h3>Puzzle Preview</h3>
+            <img src="/image/{{ job.id }}/preview" alt="Puzzle preview with grid" class="preview-img full-width">
+        </article>
+        {% endif %}
+
+        {% if job.meta and job.meta.manifest and job.meta.manifest.steps %}
+        {% set steps = job.meta.manifest.steps %}
+
+        {# Quality Breakdown #}
+        {% if steps.quality %}
+        <article>
+            <h3>Quality Breakdown</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Score</th>
+                        <th>Weight</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Face Similarity</td>
+                        <td>{{ "%.1f"|format(steps.quality.face_similarity_score) }}/100{% if steps.quality.face_similarity_raw is not none %} <small>(raw: {{ "%.4f"|format(steps.quality.face_similarity_raw) }})</small>{% endif %}</td>
+                        <td>40%</td>
+                    </tr>
+                    <tr>
+                        <td>Color Vibrancy</td>
+                        <td>{{ "%.1f"|format(steps.quality.color_vibrancy) }}/100</td>
+                        <td>20%</td>
+                    </tr>
+                    <tr>
+                        <td>Face Detection</td>
+                        <td>{{ "%.1f"|format(steps.quality.face_detection_confidence) }}/100</td>
+                        <td>10%</td>
+                    </tr>
+                    <tr>
+                        <td>Resolution</td>
+                        <td>{{ "%.1f"|format(steps.quality.resolution) }}/100</td>
+                        <td>10%</td>
+                    </tr>
+                    <tr>
+                        <td>Edge Cleanliness</td>
+                        <td>{{ "%.1f"|format(steps.quality.edge_cleanliness) }}/100</td>
+                        <td>10%</td>
+                    </tr>
+                    <tr>
+                        <td>Color Diversity</td>
+                        <td>{{ "%.1f"|format(steps.quality.color_diversity) }}/100</td>
+                        <td>10%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Composite</strong></td>
+                        <td><strong>{{ "%.1f"|format(steps.quality.composite_score) }}/100</strong></td>
+                        <td><strong>100%</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </article>
+        {% endif %}
+
+        {# Cost & Timing #}
+        <article>
+            <h3>Cost & Timing</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Time</th>
+                        <th>Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if steps.ai_transform %}
+                    <tr>
+                        <td>AI Transform</td>
+                        <td>{{ steps.ai_transform.elapsed_seconds }}s</td>
+                        <td>${{ "%.3f"|format(steps.ai_transform.cost_estimate) }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if steps.face_swap and steps.face_swap.status == 'ok' %}
+                    <tr>
+                        <td>Face Swap</td>
+                        <td>{{ steps.face_swap.elapsed_seconds }}s</td>
+                        <td>${{ "%.3f"|format(steps.face_swap.cost_estimate) }}</td>
+                    </tr>
+                    {% elif steps.face_swap and steps.face_swap.status == 'failed' %}
+                    <tr>
+                        <td>Face Swap</td>
+                        <td colspan="2"><span class="badge badge-fail">FAILED</span> {{ steps.face_swap.error }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if steps.upscale and steps.upscale.cost_estimate is defined %}
+                    <tr>
+                        <td>Upscale</td>
+                        <td>-</td>
+                        <td>${{ "%.3f"|format(steps.upscale.cost_estimate) }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td>-</td>
+                        <td><strong>${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </article>
+        {% endif %}
+
+        <div class="grid">
+            <a href="/download/{{ job.id }}/preview" role="button" class="secondary">Download Preview</a>
+            <a href="/download/{{ job.id }}/print_ready" role="button">Download Print-Ready File</a>
+        </div>
+
+        {# Feedback Section #}
+        <article>
+            <h3>Feedback</h3>
+            {% if feedback %}
+            <p>
+                Rating: <strong class="rating-display">
+                    {% for i in range(1, 6) %}
+                        {% if i <= feedback.rating %}&#9733;{% else %}&#9734;{% endif %}
+                    {% endfor %}
+                </strong> ({{ feedback.rating }}/5)
+                {% if feedback.comment %}<br>Comment: {{ feedback.comment }}{% endif %}
+                <br><small>Submitted {{ feedback.created_at[:16] }}</small>
+            </p>
+            {% endif %}
+            <form action="/feedback/{{ job.id }}" method="post">
+                <label>{{ "Update your rating" if feedback else "Rate this result" }}</label>
+                <div class="rating-group">
+                    {% for i in range(1, 6) %}
+                    <label class="rating-label">
+                        <input type="radio" name="rating" value="{{ i }}" {{ 'checked' if feedback and feedback.rating == i }} required>
+                        {{ i }}
+                    </label>
+                    {% endfor %}
+                </div>
+                <label for="comment">Comments (optional)</label>
+                <textarea id="comment" name="comment" rows="2" placeholder="What could be improved?">{{ feedback.comment if feedback else '' }}</textarea>
+                <button type="submit" class="secondary">{{ "Update Feedback" if feedback else "Submit Feedback" }}</button>
+            </form>
+        </article>
+
+        <div class="grid">
+            <a href="/?rerun={{ job.id }}" role="button" class="outline">Try Different Style</a>
+            <a href="/" role="button" class="outline secondary">Back to Dashboard</a>
+        </div>
+    </main>
+</body>
+</html>

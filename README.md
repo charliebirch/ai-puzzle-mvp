@@ -1,136 +1,144 @@
 # AI Puzzle MVP
 
-Transform family photos into magical puzzle scenes using AI! This project uses Stable Diffusion 3.5 to transform images and create custom puzzles.
+Transform family photos into magical fantasy character jigsaw puzzles using AI. Supports multiple AI backends with face-preserving identity lock, automated quality scoring, print-ready export, and a web interface for order processing.
 
-## Folder Structure
+## Architecture
+
 ```
-ai-puzzle-mvp/
-├── .env                    # API keys (don't commit!)
-├── .env.example           # Template for environment variables
-├── .gitignore
-├── requirements.txt
-├── README.md
+AI-PUZZLE-MVP/
 ├── src/
-│   └── puzzle_maker.py   # Main puzzle creation script
-├── input/                 # Put test images here
-└── output/                # Generated puzzles go here
+│   ├── backends/              # AI model backends
+│   │   ├── base.py            # Abstract base class
+│   │   ├── seedream.py        # ByteDance Seedream-4 (two-step)
+│   │   ├── instantid.py       # InstantID (SDXL + face lock)
+│   │   ├── flux_pulid.py      # Flux-PuLID (face identity)
+│   │   ├── ip_adapter_faceid.py  # IP-Adapter FaceID
+│   │   └── registry.py        # Backend factory
+│   ├── quality/               # Quality assessment
+│   │   ├── face_similarity.py # InsightFace ArcFace embeddings
+│   │   ├── image_quality.py   # Sharpness, contrast, color metrics
+│   │   ├── human_eval.py      # Human evaluation CLI
+│   │   └── __init__.py        # Unified assess_quality()
+│   ├── puzzle_maker.py        # Main CLI pipeline (model-agnostic)
+│   ├── benchmark_runner.py    # Multi-backend benchmark matrix
+│   ├── fulfill_order.py       # End-to-end order fulfillment
+│   ├── export.py              # Print-ready & preview export
+│   ├── upscale.py             # Real-ESRGAN upscaling
+│   ├── print_specs.py         # Puzzle dimensions & print profiles
+│   ├── style_presets.py       # 4 style presets
+│   ├── consent.py             # Consent event logging
+│   ├── test_suite.py          # Test photo registry
+│   └── face_guidance.py       # Legacy guidance maps
+├── web/
+│   ├── app.py                 # FastAPI web interface
+│   ├── jobs.py                # SQLite job tracking
+│   ├── templates/             # Jinja2 + HTMX templates
+│   └── static/                # CSS
+├── docs/
+│   ├── terms-of-service.md
+│   ├── privacy-policy.md
+│   ├── consent-flow.md
+│   └── etsy-listing-template.md
+├── input/                     # Customer photos (one subfolder per person)
+├── output/                    # Generated output
+└── orders/                    # Per-order directories
 ```
 
-## Features
+## Quick Start
 
-✅ Loads any image format
-✅ Resizes if needed (saves API costs)
-✅ AI transformation using Stable Diffusion 3.5
-✅ Downloads transformed result
-✅ Adds puzzle grid overlay
-✅ High-quality output
-
-## Setup Instructions
-
-### 1. Clone and Navigate to Project
 ```bash
-cd ai-puzzle-mvp
-```
-
-### 2. Create Virtual Environment
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 3. Install Dependencies
-```bash
+# Setup
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+
+# Set API key
+echo "REPLICATE_API_TOKEN=r8_your_key_here" > .env
 ```
 
-### 4. Set Up API Key
+## Usage
 
-1. Get your Replicate API key from [replicate.com](https://replicate.com)
-2. Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-3. Edit `.env` and add your API key:
-   ```
-   REPLICATE_API_TOKEN=r8_your_actual_key_here
-   ```
-
-### 5. Add Test Image
-Put a test image (any format) in the `input/` folder. For example:
-- `input/family_photo.jpg`
-- `input/test.png`
-
-### 6. Run the Script
+### Generate a puzzle (CLI)
 ```bash
-python src/puzzle_maker.py
+python src/puzzle_maker.py \
+  --input input/Chaz/charlie-outside.jpg \
+  --output output/puzzle.png \
+  --style fairytale \
+  --subject "a young girl" \
+  --backend instantid
 ```
 
-## How It Works
-
-1. **Load Image**: Reads your input image and validates it
-2. **Prepare**: Converts to RGB and resizes if needed (max 1024px)
-3. **AI Transform**: Sends to Stable Diffusion 3.5 for magical transformation
-4. **Download**: Retrieves the transformed image
-5. **Add Grid**: Overlays an 8x8 puzzle grid
-6. **Save**: Outputs high-quality PNG to `output/` folder
-
-## Customization
-
-Edit `src/puzzle_maker.py` to customize:
-
-### Change Grid Size
-```python
-img = add_puzzle_grid(img, grid_size=(10, 10))  # 10x10 grid instead of 8x8
+### Run benchmarks
+```bash
+python src/benchmark_runner.py \
+  --backends instantid flux_pulid seedream \
+  --styles fairytale storybook_cartoon \
+  --subject "a smiling child"
 ```
 
-### Change Transformation Prompt
-```python
-create_magical_puzzle(
-    input_path=INPUT_IMAGE,
-    output_path=OUTPUT_IMAGE,
-    transformation_prompt="underwater kingdom, mermaids, coral reef, vibrant ocean colors"
-)
+### Fulfill an order
+```bash
+python src/fulfill_order.py \
+  --photo customer.jpg \
+  --style fairytale \
+  --subject "a young girl" \
+  --puzzle-size 1000 \
+  --order-id ETSY-12345 \
+  --backend instantid
 ```
 
-### Adjust AI Strength
-```python
-"prompt_strength": 0.4,  # More original image preserved
-"prompt_strength": 0.8,  # More AI transformation
+### Web interface
+```bash
+uvicorn web.app:app --reload --port 8000
+# Open http://localhost:8000
 ```
 
-## Example Prompts
+### Quality scoring
+```bash
+# Image quality metrics
+python src/quality/image_quality.py output/generated.png
 
-- `"magical fairy tale scene, fantasy kingdom, vibrant colors, enchanted forest background"`
-- `"underwater kingdom, mermaids, coral reef, vibrant ocean colors"`
-- `"space adventure, planets and stars, cosmic background"`
-- `"medieval castle, knights and dragons, epic fantasy scene"`
+# Human evaluation
+python src/quality/human_eval.py eval output/benchmarks/ --source input/Chaz/charlie-outside.jpg
+python src/quality/human_eval.py summary
+```
 
-## Troubleshooting
+## AI Backends
 
-**API Error**: Make sure your `.env` file has the correct Replicate API token
+| Backend | Face Lock | Mode | Cost/Run |
+|---------|-----------|------|----------|
+| Seedream-4 | No | Two-step | $0.03 |
+| Seedream-4 Single | No | Single | $0.03 |
+| InstantID | Yes | Single | $0.015 |
+| Flux-PuLID | Yes | Single | $0.021 |
+| IP-Adapter FaceID | Yes | Single | $0.058 |
 
-**Module Not Found**: Activate virtual environment and run `pip install -r requirements.txt`
+## Styles
 
-**Image Not Found**: Check that your test image is in the `input/` folder
+- **fairytale** - Enchanted prince/princess in magical forest
+- **superhero** - Comic-book hero on futuristic skyline
+- **pixel_quest** - 8-bit RPG adventurer in retro world
+- **storybook_cartoon** - Pixar-like character in whimsical village
 
-**AI Transformation Fails**: The script will continue with the original image and just add the puzzle grid
+## Quality Scoring
 
-## Next Steps
+Composite 0-100 score:
+- Face similarity (35%) - InsightFace ArcFace embeddings
+- Resolution (20%) - vs print target dimensions
+- Sharpness (15%) - Laplacian variance
+- Color diversity (15%) - Histogram entropy
+- Contrast (10%) - RMS contrast
+- Face detection confidence (5%)
 
-Future enhancements planned:
-- Quality checks (resolution, contrast)
-- Multiple transformation styles
-- Better puzzle piece shapes (using piecemaker)
-- Face preservation with ControlNet
-- Batch processing multiple images
-- Web interface
+## Print Specs
+
+| Size | Dimensions | Pixels (300 DPI) | Price |
+|------|-----------|-------------------|-------|
+| 500pc | 16" x 20" | 4800 x 6000 | $39.99 |
+| 1000pc | 20" x 28" | 6000 x 8400 | $49.99 |
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.10+
 - Replicate API key
-- Internet connection for AI transformations
-
-## License
-
-MIT License - Feel free to use and modify!
+- Internet connection for AI and upscaling

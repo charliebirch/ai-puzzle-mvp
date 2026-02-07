@@ -1,0 +1,11 @@
+<article aria-busy="true"
+         hx-get="/status/{{ job.id }}/poll"
+         hx-trigger="every 3s"
+         hx-swap="outerHTML">
+    {% set step = job.meta.current_step|default(0) if job.meta is defined else 0 %}
+    {% set label = job.meta.current_step_label|default("Starting") if job.meta is defined else "Starting" %}
+    {% set total = job.meta.total_steps|default(7) if job.meta is defined else 7 %}
+    <h3>Step {{ step }}/{{ total }}: {{ label }}...</h3>
+    <p>Your puzzle is being generated. This typically takes 1-2 minutes.</p>
+    <progress value="{{ step }}" max="{{ total }}"></progress>
+</article>

@@ -21,6 +21,7 @@ wheels/
 *.egg
 
 # Virtual Environment
+.venv/
 venv/
 ENV/
 env/
@@ -36,8 +37,24 @@ env/
 .env
 .env.local
 
-# Project specific
+# Project specific - generated output
 output/
+orders/
+uploads/
+consent_log.jsonl
+
+# Customer photos (keep out of git)
+input/Chaz/
+input/Edgar/
+input/Ollie/
+input/amyg/
+input/joel/
+input/lucy/
+
+# Web interface database
+web/*.db
+web/*.db-shm
+web/*.db-wal
 
 # OS
 .DS_Store

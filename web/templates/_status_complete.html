@@ -1,0 +1,21 @@
+<article>
+    <h3>Complete!</h3>
+    {% if job.quality_score %}
+    {% set passed = job.quality_score >= 70 %}
+    <p>
+        Quality: <strong>{{ "%.1f"|format(job.quality_score) }}/100</strong>
+        <span class="badge {{ 'badge-pass' if passed else 'badge-fail' }}">{{ "PASS" if passed else "FAIL" }}</span>
+        {% if job.meta is defined and job.meta.manifest is defined %}
+        | Cost: <strong>${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}</strong>
+        {% endif %}
+    </p>
+    {% endif %}
+    <div class="grid">
+        <a href="/preview/{{ job.id }}" role="button">View Preview</a>
+        <a href="/download/{{ job.id }}/preview" role="button" class="secondary">Download Preview</a>
+        <a href="/download/{{ job.id }}/print_ready" role="button" class="contrast">Download Print-Ready</a>
+    </div>
+    <p style="margin-top: 1rem;">
+        <a href="/">Start New Order</a> | <a href="/?rerun={{ job.id }}">Re-run with Different Style</a>
+    </p>
+</article>
