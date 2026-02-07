@@ -1,0 +1,62 @@
+[
+  {
+    "path": "input/Chaz/charlie-ny.jpeg",
+    "person": "Charlie",
+    "challenge": "Indoor, clear"
+  },
+  {
+    "path": "input/Chaz/charlie-hat.JPG",
+    "person": "Charlie",
+    "challenge": "Hat occlusion"
+  },
+  {
+    "path": "input/Chaz/charlie-hat-glasses.JPG",
+    "person": "Charlie",
+    "challenge": "Hat + glasses"
+  },
+  {
+    "path": "input/Chaz/charlie-bright.JPG",
+    "person": "Charlie",
+    "challenge": "Bright lighting"
+  },
+  {
+    "path": "input/Chaz/charlie-outside.jpg",
+    "person": "Charlie",
+    "challenge": "Outdoor"
+  },
+  {
+    "path": "input/Edgar/edgar-bar.jpg",
+    "person": "Edgar",
+    "challenge": "Bar lighting"
+  },
+  {
+    "path": "input/Edgar/edgar-outside.jpg",
+    "person": "Edgar",
+    "challenge": "Outdoor"
+  },
+  {
+    "path": "input/Ollie/ollie-shadow.jpg",
+    "person": "Ollie",
+    "challenge": "Shadow/low light"
+  },
+  {
+    "path": "input/amyg/amyg-beach.JPG",
+    "person": "Amy",
+    "challenge": "Beach"
+  },
+  {
+    "path": "input/amyg/amyg-running.jpg",
+    "person": "Amy",
+    "challenge": "Motion"
+  },
+  {
+    "path": "input/joel/joel-pub.jpg",
+    "person": "Joel",
+    "challenge": "Indoor pub"
+  },
+  {
+    "path": "input/lucy/lucy-coffee.jpg",
+    "person": "Lucy",
+    "challenge": "Indoor cafe"
+  }
+]

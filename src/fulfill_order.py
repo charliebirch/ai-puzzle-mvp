@@ -38,6 +38,7 @@ def fulfill_order(
     skip_consent: bool = False,
     face_swap: bool = True,
     gender: Optional[str] = None,
+    seed: Optional[int] = None,
     progress_callback: Optional[Callable] = None,
 ):
     """Full order fulfillment pipeline.
@@ -127,49 +128,116 @@ def fulfill_order(
         print("  Face swap disabled for this style (pixel art)")
         face_swap = False
 
-    # Prepare input image
-    temp_input = str(order_dir / "input_resized.jpg")
-    img_resized = ImageOps.exif_transpose(Image.open(photo_path))
-    if img_resized.mode != "RGB":
-        img_resized = img_resized.convert("RGB")
-    max_size = 1024
-    if max(img_resized.size) > max_size:
-        img_resized.thumbnail((max_size, max_size))
-    img_resized.save(temp_input, quality=95)
+    # Prepare input image (EXIF rotation + RGB conversion only, no resize)
+    # Full-resolution input gives the model more detail to work with
+    temp_input = str(order_dir / "input_prepared.png")
+    img_prepared = ImageOps.exif_transpose(Image.open(photo_path))
+    if img_prepared.mode != "RGB":
+        img_prepared = img_prepared.convert("RGB")
+    img_prepared.save(temp_input)
 
-    print(f"[3/6] AI transform ({backend}, {style})...")
-
+    pipeline = style_config.get("pipeline", "kontext")
     prompt = style_config["kontext_prompt"]
 
-    start = time.time()
-    result = be.generate(
-        prompt=prompt,
-        image_path=temp_input,
-        style_settings=style_config["settings"],
-        negative_prompt=style_config.get("negative_prompt"),
-    )
-    elapsed = time.time() - start
-    total_cost = result.cost_estimate
-
-    # Download generated image
     import requests
     from io import BytesIO
-    response = requests.get(result.image_url, timeout=120)
-    response.raise_for_status()
-    generated_img = Image.open(BytesIO(response.content))
-    generated_path = str(order_dir / "generated.png")
-    generated_img.save(generated_path, quality=95)
 
-    manifest["steps"]["ai_transform"] = {
-        "backend": backend,
-        "model_id": result.model_id,
-        "prompt": prompt,
-        "elapsed_seconds": round(elapsed, 1),
-        "cost_estimate": result.cost_estimate,
-        "generated_size": list(generated_img.size),
-        "status": "ok",
-    }
-    print(f"  Generated {generated_img.size[0]}x{generated_img.size[1]} in {elapsed:.1f}s (${result.cost_estimate})")
+    if pipeline == "cartoonify_then_kontext":
+        # Two-step pipeline: Cartoonify → Kontext Pro scene placement
+        print(f"[3/6] AI transform — two-step cartoon pipeline ({style})...")
+
+        # Step 3a: Cartoonify the input photo
+        _progress(3, "Cartoonifying...")
+        print("  Step 1: Cartoonifying photo...")
+        cartoonify_be = get_backend("flux_cartoonify")
+        start = time.time()
+        cartoon_result = cartoonify_be.generate(
+            prompt="",  # cartoonify ignores prompt
+            image_path=temp_input,
+            style_settings=style_config["settings"],
+        )
+        cartoon_elapsed = time.time() - start
+
+        # Download cartoonified image
+        response = requests.get(cartoon_result.image_url, timeout=120)
+        response.raise_for_status()
+        cartoon_img = Image.open(BytesIO(response.content))
+        cartoonified_path = str(order_dir / "cartoonified.png")
+        cartoon_img.save(cartoonified_path, quality=95)
+        print(f"  Cartoonified {cartoon_img.size[0]}x{cartoon_img.size[1]} in {cartoon_elapsed:.1f}s (${cartoon_result.cost_estimate})")
+
+        # Step 3b: Place cartoon character in scene using Kontext Pro
+        _progress(3, "Creating scene...")
+        print(f"  Step 2: Scene placement ({backend})...")
+        start = time.time()
+        result = be.generate(
+            prompt=prompt,
+            image_path=cartoonified_path,
+            style_settings=style_config["settings"],
+            negative_prompt=style_config.get("negative_prompt"),
+            seed=seed,
+        )
+        scene_elapsed = time.time() - start
+
+        elapsed = cartoon_elapsed + scene_elapsed
+        total_cost = cartoon_result.cost_estimate + result.cost_estimate
+
+        # Download generated image
+        response = requests.get(result.image_url, timeout=120)
+        response.raise_for_status()
+        generated_img = Image.open(BytesIO(response.content))
+        generated_path = str(order_dir / "generated.png")
+        generated_img.save(generated_path, quality=95)
+
+        manifest["steps"]["ai_transform"] = {
+            "pipeline": "cartoonify_then_kontext",
+            "backend": backend,
+            "cartoonify_model": cartoon_result.model_id,
+            "scene_model": result.model_id,
+            "prompt": prompt,
+            "cartoonify_elapsed": round(cartoon_elapsed, 1),
+            "scene_elapsed": round(scene_elapsed, 1),
+            "elapsed_seconds": round(elapsed, 1),
+            "cartoonify_cost": cartoon_result.cost_estimate,
+            "scene_cost": result.cost_estimate,
+            "cost_estimate": total_cost,
+            "generated_size": list(generated_img.size),
+            "status": "ok",
+        }
+        print(f"  Generated {generated_img.size[0]}x{generated_img.size[1]} in {elapsed:.1f}s (${total_cost})")
+
+    else:
+        # Single-step pipeline: Kontext Pro does everything
+        print(f"[3/6] AI transform ({backend}, {style})...")
+
+        start = time.time()
+        result = be.generate(
+            prompt=prompt,
+            image_path=temp_input,
+            style_settings=style_config["settings"],
+            negative_prompt=style_config.get("negative_prompt"),
+            seed=seed,
+        )
+        elapsed = time.time() - start
+        total_cost = result.cost_estimate
+
+        # Download generated image
+        response = requests.get(result.image_url, timeout=120)
+        response.raise_for_status()
+        generated_img = Image.open(BytesIO(response.content))
+        generated_path = str(order_dir / "generated.png")
+        generated_img.save(generated_path, quality=95)
+
+        manifest["steps"]["ai_transform"] = {
+            "backend": backend,
+            "model_id": result.model_id,
+            "prompt": prompt,
+            "elapsed_seconds": round(elapsed, 1),
+            "cost_estimate": result.cost_estimate,
+            "generated_size": list(generated_img.size),
+            "status": "ok",
+        }
+        print(f"  Generated {generated_img.size[0]}x{generated_img.size[1]} in {elapsed:.1f}s (${result.cost_estimate})")
 
     # Step 4: Face swap (post-processing)
     _progress(4, "Face swap")
@@ -312,6 +380,8 @@ def parse_args():
                         help="Disable face swap post-processing (enabled by default)")
     parser.add_argument("--gender", default=None, choices=["male", "female", "non-binary"],
                         help="Gender for face swap metadata")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Fixed seed for reproducible results (omit for random)")
     args = parser.parse_args()
     args.face_swap = not args.no_face_swap
     return args
@@ -329,4 +399,5 @@ if __name__ == "__main__":
         skip_consent=args.skip_consent,
         face_swap=args.face_swap,
         gender=args.gender,
+        seed=args.seed,
     )

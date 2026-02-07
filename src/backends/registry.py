@@ -2,9 +2,13 @@ from typing import Dict
 
 from backends.base import BaseBackend
 from backends.flux_kontext import FluxKontextBackend
+from backends.flux_kontext_max import FluxKontextMaxBackend
+from backends.flux_cartoonify import FluxCartoonifyBackend
 
 _BACKENDS: Dict[str, type] = {
     "flux_kontext": FluxKontextBackend,
+    "flux_kontext_max": FluxKontextMaxBackend,
+    "flux_cartoonify": FluxCartoonifyBackend,
 }
 
 

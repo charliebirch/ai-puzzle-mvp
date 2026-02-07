@@ -1,8 +1,115 @@
-# Active styles — storybook_cartoon, space_explorer, underwater_adventure, pixel_platformer.
-# Other styles are shelved (usable for testing via get_style()).
-# Each style can set "face_swap": False to auto-disable face swap (pixel art styles).
+# Two-tier style system: Art Style (animation vs cartoon) x Scene (village, space, underwater).
+#
+# Animation styles: single-step Kontext Pro — transforms photo into animated character + scene.
+# Cartoon styles: two-step Cartoonify → Kontext Pro — cartoon filter first, then scene placement.
+#
+# All styles disable face swap (face_swap: False) — it makes images too photorealistic.
+#
+# Old styles (storybook_cartoon, space_explorer, etc.) are in _SHELVED_STYLES for CLI testing.
 
 STYLE_PRESETS = {
+    # --- Animation (single-step Kontext Pro) ---
+    "animation_village": {
+        "pipeline": "kontext",
+        "kontext_prompt": (
+            "Create a stunning Pixar-quality animated character inspired by this person's general "
+            "appearance. Give them exaggerated cartoon proportions — big expressive eyes, a playful "
+            "smile, and a dynamic adventurous pose. Dress them in a whimsical fantasy outfit. Place "
+            "them in a vibrant magical village with floating lanterns, cobblestone streets, and lush "
+            "gardens. Rich color palette, dramatic cartoon lighting, cinematic composition."
+        ),
+        "negative_prompt": (
+            "hyper-realistic, uncanny valley, stiff pose, washed colors, facial distortion, "
+            "wrong hair color, changed hairstyle, altered hair texture"
+        ),
+        "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
+        "face_swap": False,
+    },
+    "animation_space": {
+        "pipeline": "kontext",
+        "kontext_prompt": (
+            "Create a stunning Pixar-quality animated character inspired by this person's general "
+            "appearance. Give them exaggerated cartoon proportions — big expressive eyes, a look of "
+            "amazement, and a dynamic weightless pose. Dress them in a colourful puffy cartoon "
+            "astronaut suit with a clear bubble helmet. Place them floating in bright whimsical outer "
+            "space with colorful planets, a rocket ship, friendly cartoon aliens, glowing nebulas, "
+            "and twinkling stars. Rich color palette, dramatic cartoon lighting, cinematic composition."
+        ),
+        "negative_prompt": (
+            "hyper-realistic, dark sci-fi, horror, grim atmosphere, stiff pose, washed colors, "
+            "facial distortion, wrong hair color, changed hairstyle, altered hair texture"
+        ),
+        "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
+        "face_swap": False,
+    },
+    "animation_underwater": {
+        "pipeline": "kontext",
+        "kontext_prompt": (
+            "Create a stunning Pixar-quality animated character inspired by this person's general "
+            "appearance. Give them exaggerated cartoon proportions — big expressive eyes, a joyful "
+            "grin, and a dynamic swimming pose. Dress them in a whimsical cartoon diving suit with "
+            "goggles. Place them in a vibrant underwater world with colorful coral reefs, friendly "
+            "sea creatures, a glowing sunken treasure chest, flowing kelp, and shimmering bubbles. "
+            "Warm turquoise tones with golden light rays from above. Rich color palette, dramatic "
+            "cartoon lighting, cinematic composition."
+        ),
+        "negative_prompt": (
+            "hyper-realistic, dark ocean, murky water, horror, stiff pose, washed colors, "
+            "facial distortion, wrong hair color, changed hairstyle, altered hair texture"
+        ),
+        "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
+        "face_swap": False,
+    },
+
+    # --- Cartoon (two-step: Cartoonify → Kontext Pro scene placement) ---
+    "cartoon_village": {
+        "pipeline": "cartoonify_then_kontext",
+        "kontext_prompt": (
+            "Place this cartoon character in a vibrant magical village with floating lanterns, "
+            "cobblestone streets, and lush gardens. Give them a whimsical fantasy outfit and a dynamic "
+            "adventurous pose. Warm storybook lighting, cinematic composition. Keep the cartoon art "
+            "style exactly as it is — do not make it more realistic."
+        ),
+        "negative_prompt": (
+            "photorealistic, hyper-realistic, uncanny valley, stiff pose, washed colors"
+        ),
+        "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
+        "face_swap": False,
+    },
+    "cartoon_space": {
+        "pipeline": "cartoonify_then_kontext",
+        "kontext_prompt": (
+            "Place this cartoon character floating in bright whimsical outer space. Give them a "
+            "colourful puffy astronaut suit with a clear bubble helmet and a weightless pose. Colorful "
+            "planets, a rocket ship, friendly cartoon aliens, glowing nebulas, twinkling stars. "
+            "Cinematic composition. Keep the cartoon art style exactly as it is — do not make it "
+            "more realistic."
+        ),
+        "negative_prompt": (
+            "photorealistic, hyper-realistic, dark sci-fi, horror, grim atmosphere, stiff pose"
+        ),
+        "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
+        "face_swap": False,
+    },
+    "cartoon_underwater": {
+        "pipeline": "cartoonify_then_kontext",
+        "kontext_prompt": (
+            "Place this cartoon character swimming in a vibrant underwater world. Give them a cartoon "
+            "diving suit with goggles and a dynamic swimming pose. Colorful coral reefs, friendly sea "
+            "creatures, a glowing treasure chest, flowing kelp, shimmering bubbles. Warm turquoise "
+            "tones with golden light from above. Keep the cartoon art style exactly as it is — do not "
+            "make it more realistic."
+        ),
+        "negative_prompt": (
+            "photorealistic, hyper-realistic, dark ocean, murky water, horror, stiff pose"
+        ),
+        "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
+        "face_swap": False,
+    },
+}
+
+# Shelved styles — not shown in web UI but still usable for CLI testing/benchmarks
+_SHELVED_STYLES = {
     "storybook_cartoon": {
         "kontext_prompt": (
             "Transform this photo into a Pixar-like cartoon illustration. Give the person exaggerated "
@@ -60,12 +167,38 @@ STYLE_PRESETS = {
             "noisy edges, melted pixels, wrong hair color, changed hairstyle"
         ),
         "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
-        "face_swap": False,  # pixel art + photorealistic face swap = bad
+        "face_swap": False,
     },
-}
-
-# Shelved styles — not shown in CLI choices but still usable for testing/benchmarks
-_SHELVED_STYLES = {
+    "storybook_identity": {
+        "kontext_prompt": (
+            "Transform this photo into a Pixar-like 3D animated character. The character MUST have "
+            "the same face shape, eye color, nose shape, mouth, and facial features as the person "
+            "in the photo. Maintain their exact hairstyle and hair color. Place them in a colorful "
+            "whimsical village with floating lanterns and layered depth. Soft cartoon shading, warm "
+            "storybook lighting."
+        ),
+        "negative_prompt": (
+            "hyper-realistic, uncanny valley, stiff pose, washed colors, facial distortion, "
+            "wrong hair color, changed hairstyle, altered hair texture"
+        ),
+        "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
+        "pulid_settings": {"id_weight": 1.0, "start_step": 0},
+    },
+    "storybook_stylized": {
+        "kontext_prompt": (
+            "Create a stunning Pixar-quality animated character inspired by this person's general "
+            "appearance. Give them exaggerated cartoon proportions — big expressive eyes, a playful "
+            "smile, and a dynamic adventurous pose. Dress them in a whimsical fantasy outfit. Place "
+            "them in a vibrant magical village with floating lanterns, cobblestone streets, and lush "
+            "gardens. Rich color palette, dramatic cartoon lighting, cinematic composition."
+        ),
+        "negative_prompt": (
+            "hyper-realistic, uncanny valley, stiff pose, washed colors, facial distortion, "
+            "wrong hair color, changed hairstyle, altered hair texture"
+        ),
+        "settings": {"denoising": 0.45, "cfg_scale": 6.8, "inference_steps": 30},
+        "pulid_settings": {"id_weight": 0.5, "start_step": 4},
+    },
     "fairytale": {
         "kontext_prompt": (
             "Transform this photo into a magical fairytale illustration. Make the person an enchanted "
@@ -95,7 +228,7 @@ _SHELVED_STYLES = {
     },
 }
 
-DEFAULT_STYLE = "storybook_cartoon"
+DEFAULT_STYLE = "animation_village"
 
 
 def get_style(style_id: str):

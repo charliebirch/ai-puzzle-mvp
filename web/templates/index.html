@@ -20,29 +20,47 @@
             {% endif %}
 
             <form action="/upload" method="post" enctype="multipart/form-data">
-                {% if rerun_job %}
-                <input type="hidden" name="existing_photo" value="{{ rerun_job.photo_path }}">
-                <label for="photo">Customer Photo <small>(using photo from {{ rerun_job.id }}; upload a new one to override)</small></label>
-                <input type="file" id="photo" name="photo" accept="image/*">
-                {% else %}
+                <input type="hidden" id="existing_photo" name="existing_photo" value="{{ rerun_job.photo_path if rerun_job else '' }}">
                 <label for="photo">Customer Photo</label>
-                <input type="file" id="photo" name="photo" accept="image/*" required>
+
+                {% if rerun_job %}
+                <div id="reuse-indicator" class="reuse-photo-box">
+                    <img src="/image/{{ rerun_job.id }}/original" alt="Loaded photo" class="reuse-thumb">
+                    <div>
+                        <strong>Photo loaded</strong> from job <code>{{ rerun_job.id }}</code>
+                        <br><small>Upload a new file below to replace, or</small>
+                        <br><button type="button" id="clear-photo-btn" class="outline secondary btn-sm">Remove photo</button>
+                    </div>
+                </div>
                 {% endif %}
 
+                <input type="file" id="photo" name="photo" accept="image/*" {% if not rerun_job %}required{% endif %}>
+
+                <aside class="upload-tips">
+                    <strong>For best results:</strong>
+                    <ul>
+                        <li>Clear, well-lit photo with the face clearly visible</li>
+                        <li>Front-facing or slight angle — avoid profiles</li>
+                        <li>One person per photo (no group shots)</li>
+                        <li>Avoid sunglasses or anything covering the face</li>
+                    </ul>
+                </aside>
+
+                <input type="hidden" id="style" name="style" value="animation_village">
                 <div class="grid">
                     <div>
-                        <label for="style">Style</label>
-                        <select id="style" name="style">
-                            <option value="storybook_cartoon" selected>Storybook Cartoon</option>
-                            <option value="space_explorer">Space Explorer</option>
-                            <option value="underwater_adventure">Underwater Adventure</option>
-                            <option value="pixel_platformer">Pixel Platformer</option>
+                        <label for="art_style">Art Style</label>
+                        <select id="art_style" name="art_style">
+                            <option value="animation" selected>Animation (Pixar-style)</option>
+                            <option value="cartoon">Cartoon (classic cartoon filter)</option>
                         </select>
                     </div>
                     <div>
-                        <label for="backend">AI Backend</label>
-                        <select id="backend" name="backend">
-                            <option value="flux_kontext" selected>FLUX Kontext Pro</option>
+                        <label for="scene">Scene</label>
+                        <select id="scene" name="scene">
+                            <option value="village" selected>Magical Village</option>
+                            <option value="space">Space Adventure</option>
+                            <option value="underwater">Underwater World</option>
                         </select>
                     </div>
                     <div>
@@ -53,13 +71,19 @@
                         </select>
                     </div>
                 </div>
+                <div>
+                    <label for="backend">Model</label>
+                    <select id="backend" name="backend">
+                        <option value="flux_kontext" selected>FLUX Kontext Pro ($0.04/run, recommended)</option>
+                        <option value="flux_kontext_max">FLUX Kontext Max ($0.08/run)</option>
+                    </select>
+                </div>
 
-                <fieldset>
-                    <label>
-                        <input type="checkbox" name="face_swap" value="yes" checked>
-                        Enable face swap (recommended for most styles)
-                    </label>
-                </fieldset>
+                <details>
+                    <summary>Advanced</summary>
+                    <label for="seed">Seed (optional, for reproducibility)</label>
+                    <input type="number" id="seed" name="seed" placeholder="Leave empty for random">
+                </details>
 
                 <details class="terms-details">
                     <summary>Terms & Conditions (read before consenting)</summary>
@@ -163,16 +187,50 @@
             const photo = document.getElementById('photo');
             const consent = document.querySelector('input[name="consent"]');
             const btn = document.getElementById('submit-btn');
-            const hasExisting = document.querySelector('input[name="existing_photo"]');
+            const existingInput = document.getElementById('existing_photo');
+            const reuseBox = document.getElementById('reuse-indicator');
+            const clearBtn = document.getElementById('clear-photo-btn');
+            const artStyle = document.getElementById('art_style');
+            const scene = document.getElementById('scene');
+            const styleInput = document.getElementById('style');
+
+            function updateStyle() {
+                styleInput.value = artStyle.value + '_' + scene.value;
+            }
 
             function check() {
-                const hasPhoto = (photo && photo.files && photo.files.length > 0) || hasExisting;
+                const hasNewFile = photo && photo.files && photo.files.length > 0;
+                const hasExisting = existingInput && existingInput.value;
+                const hasPhoto = hasNewFile || hasExisting;
                 const hasConsent = consent && consent.checked;
                 btn.disabled = !(hasPhoto && hasConsent);
             }
 
-            if (photo) photo.addEventListener('change', check);
+            // Clear reused photo — require a new upload
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    existingInput.value = '';
+                    reuseBox.style.display = 'none';
+                    photo.required = true;
+                    check();
+                });
+            }
+
+            // If user uploads a new file while reusing, hide the reuse indicator
+            if (photo) {
+                photo.addEventListener('change', function() {
+                    if (photo.files.length > 0 && reuseBox) {
+                        reuseBox.style.display = 'none';
+                        existingInput.value = '';
+                    }
+                    check();
+                });
+            }
+
             if (consent) consent.addEventListener('change', check);
+            if (artStyle) artStyle.addEventListener('change', updateStyle);
+            if (scene) scene.addEventListener('change', updateStyle);
+            updateStyle();
             check();
         })();
     </script>

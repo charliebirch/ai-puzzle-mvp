@@ -8,6 +8,10 @@ Tuned for animated/cartoon puzzle art (not photorealism):
 - Color vibrancy rewards vivid saturated colors
 - Edge cleanliness rewards clean cartoon edges
 - Sharpness and contrast removed (penalized cartoon art)
+
+Weights are tuned for the no-face-swap cartoon pipeline where face
+similarity is typically 0.30–0.42. Visual cartoon quality (vibrancy,
+edges, color diversity) carries most of the weight.
 """
 
 from typing import Dict, Optional
@@ -15,14 +19,16 @@ from typing import Dict, Optional
 from quality.face_similarity import score_face_similarity
 from quality.image_quality import assess_image_quality
 
-# Weights for composite score — tuned for animated kids' puzzle art
+# Weights for composite score — tuned for cartoon-only pipeline (no face swap)
+# Face similarity reduced because cartoon transforms score 0.30–0.42 naturally.
+# Visual quality metrics (vibrancy, edges, palette) are the primary signals.
 WEIGHTS = {
-    "face_similarity": 0.40,       # "clearly the same person"
-    "color_vibrancy": 0.20,        # vivid cartoon colors
-    "face_detection_confidence": 0.10,  # catches face distortion
-    "resolution": 0.10,            # mostly binary after upscale
-    "edge_cleanliness": 0.10,      # clean edges, no artifacts
-    "color_diversity": 0.10,       # histogram entropy still useful
+    "face_similarity": 0.15,            # reduced — cartoon doesn't need exact likeness
+    "color_vibrancy": 0.25,             # primary cartoon quality signal
+    "face_detection_confidence": 0.10,  # face is present and well-formed
+    "resolution": 0.10,                 # mostly binary after upscale
+    "edge_cleanliness": 0.20,           # clean cartoon edges, no artifacts
+    "color_diversity": 0.20,            # rich scenes with varied palette
 }
 
 

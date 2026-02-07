@@ -18,6 +18,7 @@ import shutil
 import sys
 import uuid
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
@@ -70,6 +71,7 @@ def _process_job(job_id: str):
 
     meta = _parse_metadata(job)
     face_swap_enabled = meta.get("face_swap", True)
+    job_seed = meta.get("seed")  # None means random
 
     def on_progress(step: int, label: str, total: int):
         """Write step progress into job metadata."""
@@ -91,6 +93,7 @@ def _process_job(job_id: str):
             backend=job["backend"],
             skip_consent=False,
             face_swap=face_swap_enabled,
+            seed=job_seed,
             progress_callback=on_progress,
         )
 
@@ -144,12 +147,12 @@ async def upload(
     request: Request,
     background_tasks: BackgroundTasks,
     photo: UploadFile = File(None),
-    style: str = Form("storybook_cartoon"),
+    style: str = Form("animation_village"),
     backend: str = Form("flux_kontext"),
     puzzle_size: int = Form(1000),
     consent: str = Form(...),
-    face_swap: str = Form(""),
     existing_photo: str = Form(""),
+    seed: Optional[str] = Form(""),
 ):
     """Handle photo upload and start processing."""
     job_id = f"WEB-{uuid.uuid4().hex[:8].upper()}"
@@ -166,8 +169,18 @@ async def upload(
     else:
         return HTMLResponse("No photo provided", status_code=400)
 
-    # Store face_swap preference in metadata
-    meta = {"face_swap": face_swap == "yes"}
+    # Face swap disabled for all web jobs — it makes images too photorealistic
+    # Parse seed — empty string or non-numeric means random (no seed)
+    parsed_seed = None
+    if seed and seed.strip():
+        try:
+            parsed_seed = int(seed.strip())
+        except ValueError:
+            pass
+
+    meta = {"face_swap": False}
+    if parsed_seed is not None:
+        meta["seed"] = parsed_seed
 
     # Create job
     create_job(
