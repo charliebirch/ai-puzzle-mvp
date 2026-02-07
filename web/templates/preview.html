@@ -12,16 +12,17 @@
         <h1>Preview: {{ job.id }}</h1>
         <p>Style: {{ job.style }} | Backend: {{ job.backend }} | {{ job.puzzle_size }} pieces</p>
 
-        {% if job.quality_score %}
-        {% set passed = job.quality_score >= 70 %}
         <p>
+            {% if job.quality_score %}
+            {% set passed = job.quality_score >= 70 %}
             Quality: <strong>{{ "%.1f"|format(job.quality_score) }}/100</strong>
             <span class="badge {{ 'badge-pass' if passed else 'badge-fail' }}">{{ "PASS" if passed else "FAIL" }}</span>
+            {% endif %}
             {% if job.meta and job.meta.manifest %}
-            | Cost: <strong>${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}</strong>
+            {% if job.quality_score %} | {% endif %}
+            Cost: <strong>${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}</strong>
             {% endif %}
         </p>
-        {% endif %}
 
         <div class="grid">
             <article>
@@ -44,8 +45,8 @@
         {% if job.meta and job.meta.manifest and job.meta.manifest.steps %}
         {% set steps = job.meta.manifest.steps %}
 
-        {# Quality Breakdown #}
-        {% if steps.quality %}
+        {# Quality Breakdown — only show if full scoring ran (not lightweight mode) #}
+        {% if steps.quality and not steps.quality.skipped %}
         <article>
             <h3>Quality Breakdown</h3>
             <table>
