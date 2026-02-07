@@ -13,7 +13,7 @@
     <div class="grid">
         <a href="/preview/{{ job.id }}" role="button">View Preview</a>
         <a href="/download/{{ job.id }}/preview" role="button" class="secondary">Download Preview</a>
-        <a href="/download/{{ job.id }}/print_ready" role="button" class="contrast">Download Print-Ready</a>
+        {% if job.print_ready_path %}<a href="/download/{{ job.id }}/print_ready" role="button" class="contrast">Download Print-Ready</a>{% endif %}
     </div>
     <p style="margin-top: 1rem;">
         <a href="/">Start New Order</a> | <a href="/?rerun={{ job.id }}">Re-run with Different Style</a>

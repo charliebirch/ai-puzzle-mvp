@@ -148,7 +148,7 @@
 
         <div class="grid">
             <a href="/download/{{ job.id }}/preview" role="button" class="secondary">Download Preview</a>
-            <a href="/download/{{ job.id }}/print_ready" role="button">Download Print-Ready File</a>
+            {% if job.print_ready_path %}<a href="/download/{{ job.id }}/print_ready" role="button">Download Print-Ready File</a>{% endif %}
         </div>
 
         {# Feedback Section #}
