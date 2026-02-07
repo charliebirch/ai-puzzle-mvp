@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -21,6 +22,10 @@ from dotenv import load_dotenv
 from PIL import Image, ImageOps
 
 load_dotenv()
+
+# Lightweight mode: skip quality scoring (InsightFace) and upscaling to save memory.
+# Set LIGHTWEIGHT_MODE=1 on Render or other memory-constrained environments.
+LIGHTWEIGHT_MODE = os.environ.get("LIGHTWEIGHT_MODE", "").strip() in ("1", "true", "yes")
 
 
 def fulfill_order(
@@ -208,59 +213,79 @@ def fulfill_order(
             print(f"  WARNING: Face swap failed ({e}). Continuing with un-swapped image.")
             manifest["steps"]["face_swap"] = {"status": "failed", "error": str(e)}
 
-    # Step 5: Quality score
+    # Step 5: Quality score (skipped in lightweight mode — needs InsightFace ~300MB)
     _progress(5, "Quality scoring")
-    print("[4/6] Quality scoring...")
-    from quality import assess_quality
-    quality = assess_quality(
-        generated_path=generated_path,
-        source_path=photo_path,
-        target_pieces=puzzle_size,
-        save_thumbnails_dir=str(order_dir / "faces"),
-    )
+    if LIGHTWEIGHT_MODE:
+        print("[4/6] Quality scoring... SKIPPED (lightweight mode)")
+        quality = {"composite_score": 0, "pass": False, "skipped": True}
+    else:
+        print("[4/6] Quality scoring...")
+        from quality import assess_quality
+        quality = assess_quality(
+            generated_path=generated_path,
+            source_path=photo_path,
+            target_pieces=puzzle_size,
+            save_thumbnails_dir=str(order_dir / "faces"),
+        )
+        print(f"  Composite: {quality['composite_score']}/100 ({'PASS' if quality['pass'] else 'FAIL'})")
+        if quality.get("face_similarity_raw") is not None:
+            print(f"  Face similarity: {quality['face_similarity_raw']:.4f} ({quality.get('face_confidence', 'n/a')})")
     manifest["steps"]["quality"] = quality
-    print(f"  Composite: {quality['composite_score']}/100 ({'PASS' if quality['pass'] else 'FAIL'})")
-    if quality.get("face_similarity_raw") is not None:
-        print(f"  Face similarity: {quality['face_similarity_raw']:.4f} ({quality.get('face_confidence', 'n/a')})")
 
-    # Step 6: Upscale
+    # Step 6: Upscale (skipped in lightweight mode)
     _progress(6, "Upscaling")
-    print(f"[5/6] Upscaling to print resolution ({puzzle_size}pc)...")
-    from upscale import upscale_for_print
-    upscaled_path = str(order_dir / "upscaled.png")
-    upscale_result = upscale_for_print(
-        input_path=generated_path,
-        output_path=upscaled_path,
-        puzzle_pieces=puzzle_size,
-    )
-    manifest["steps"]["upscale"] = upscale_result
-    print(f"  Upscaled to {upscale_result['final_size'][0]}x{upscale_result['final_size'][1]}")
+    upscale_cost = 0
+    if LIGHTWEIGHT_MODE:
+        print(f"[5/6] Upscaling... SKIPPED (lightweight mode)")
+        # Use generated image directly as preview
+        upscaled_path = generated_path
+        manifest["steps"]["upscale"] = {"skipped": True}
+    else:
+        print(f"[5/6] Upscaling to print resolution ({puzzle_size}pc)...")
+        from upscale import upscale_for_print
+        upscaled_path = str(order_dir / "upscaled.png")
+        upscale_result = upscale_for_print(
+            input_path=generated_path,
+            output_path=upscaled_path,
+            puzzle_pieces=puzzle_size,
+        )
+        manifest["steps"]["upscale"] = upscale_result
+        upscale_cost = upscale_result.get("cost_estimate", 0)
+        print(f"  Upscaled to {upscale_result['final_size'][0]}x{upscale_result['final_size'][1]}")
 
     # Step 7: Export preview + print-ready
     _progress(7, "Exporting")
-    print("[6/6] Generating preview and print-ready files...")
-    from export import export_preview, export_print_ready
+    if LIGHTWEIGHT_MODE:
+        print("[6/6] Exporting preview (lightweight mode)...")
+        # Just copy generated image as preview — no grid overlay or print-ready
+        preview_path = str(order_dir / "preview.jpg")
+        Image.open(generated_path).convert("RGB").save(preview_path, quality=90)
+        manifest["steps"]["export"] = {"lightweight": True}
+        print(f"  Preview: {preview_path}")
+    else:
+        print("[6/6] Generating preview and print-ready files...")
+        from export import export_preview, export_print_ready
 
-    preview_path = str(order_dir / "preview.jpg")
-    export_preview(
-        image_path=upscaled_path,
-        output_path=preview_path,
-        puzzle_pieces=puzzle_size,
-    )
-    print(f"  Preview: {preview_path}")
+        preview_path = str(order_dir / "preview.jpg")
+        export_preview(
+            image_path=upscaled_path,
+            output_path=preview_path,
+            puzzle_pieces=puzzle_size,
+        )
+        print(f"  Preview: {preview_path}")
 
-    print_path = str(order_dir / "print_ready.jpg")
-    print_result = export_print_ready(
-        image_path=upscaled_path,
-        output_path=print_path,
-        puzzle_pieces=puzzle_size,
-    )
-    manifest["steps"]["export"] = print_result
-    print(f"  Print-ready: {print_path} ({print_result['dimensions'][0]}x{print_result['dimensions'][1]}, {print_result['dpi']}DPI, {print_result['file_size_mb']}MB)")
+        print_path = str(order_dir / "print_ready.jpg")
+        print_result = export_print_ready(
+            image_path=upscaled_path,
+            output_path=print_path,
+            puzzle_pieces=puzzle_size,
+        )
+        manifest["steps"]["export"] = print_result
+        print(f"  Print-ready: {print_path} ({print_result['dimensions'][0]}x{print_result['dimensions'][1]}, {print_result['dpi']}DPI, {print_result['file_size_mb']}MB)")
 
     # Save manifest
     manifest["completed_at"] = datetime.now().isoformat()
-    manifest["total_cost_estimate"] = total_cost + upscale_result.get("cost_estimate", 0)
+    manifest["total_cost_estimate"] = total_cost + upscale_cost
     manifest_path = order_dir / "manifest.json"
     with manifest_path.open("w") as f:
         json.dump(manifest, f, indent=2, default=str)
