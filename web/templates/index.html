@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Puzzle Workshop</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <main class="container">
+        <h1>AI Puzzle Workshop</h1>
+        <p>Upload a customer photo to create a personalized fantasy puzzle.</p>
+
+        <article>
+            <h2>New Order</h2>
+
+            {% if rerun_job %}
+            <p class="rerun-note">Re-running with photo from <strong>{{ rerun_job.id }}</strong>. Change the style or settings below.</p>
+            {% endif %}
+
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <input type="hidden" id="existing_photo" name="existing_photo" value="{{ rerun_job.photo_path if rerun_job else '' }}">
+                <label for="photo">Customer Photo</label>
+
+                {% if rerun_job %}
+                <div id="reuse-indicator" class="reuse-photo-box">
+                    <img src="/image/{{ rerun_job.id }}/original" alt="Loaded photo" class="reuse-thumb">
+                    <div>
+                        <strong>Photo loaded</strong> from job <code>{{ rerun_job.id }}</code>
+                        <br><small>Upload a new file below to replace, or</small>
+                        <br><button type="button" id="clear-photo-btn" class="outline secondary btn-sm">Remove photo</button>
+                    </div>
+                </div>
+                {% endif %}
+
+                <input type="file" id="photo" name="photo" accept="image/*" {% if not rerun_job %}required{% endif %}>
+
+                <aside class="upload-tips">
+                    <strong>For best results:</strong>
+                    <ul>
+                        <li>Clear, well-lit photo with the face clearly visible</li>
+                        <li>Front-facing or slight angle — avoid profiles</li>
+                        <li>One person per photo (no group shots)</li>
+                        <li>Avoid sunglasses or anything covering the face</li>
+                    </ul>
+                </aside>
+
+                <input type="hidden" id="style" name="style" value="animation_village">
+                <div class="grid">
+                    <div>
+                        <label for="art_style">Art Style</label>
+                        <select id="art_style" name="art_style">
+                            <option value="animation" selected>Animation (Pixar-style)</option>
+                            <option value="cartoon">Cartoon (classic cartoon filter)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="scene">Scene</label>
+                        <select id="scene" name="scene">
+                            <option value="village" selected>Magical Village</option>
+                            <option value="space">Space Adventure</option>
+                            <option value="underwater">Underwater World</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="puzzle_size">Puzzle Size</label>
+                        <select id="puzzle_size" name="puzzle_size">
+                            <option value="1000">1000 pieces ($49.99)</option>
+                            <option value="500">500 pieces ($39.99)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label for="backend">Model</label>
+                    <select id="backend" name="backend">
+                        <option value="flux_kontext" selected>FLUX Kontext Pro ($0.04/run, recommended)</option>
+                        <option value="flux_kontext_max">FLUX Kontext Max ($0.08/run)</option>
+                    </select>
+                </div>
+
+                <details>
+                    <summary>Advanced</summary>
+                    <label for="seed">Seed (optional, for reproducibility)</label>
+                    <input type="number" id="seed" name="seed" placeholder="Leave empty for random">
+                </details>
+
+                <details class="terms-details">
+                    <summary>Terms & Conditions (read before consenting)</summary>
+                    <div class="terms-box">
+                        <h4>Photo Submission & License</h4>
+                        <p>By submitting a photo, you grant us a limited, non-exclusive license to process the image using AI tools solely for the purpose of creating your custom puzzle. You represent that you have the right to submit the photo (it's yours, or you have consent from the person depicted). We do not resell, redistribute, or use your photos for any purpose other than fulfilling your order.</p>
+
+                        <h4>Consent Requirements</h4>
+                        <p>You must be 18 years or older to place an order, OR have parental/guardian consent. If the photo depicts a minor, the ordering adult confirms they are the parent/legal guardian or have explicit consent from the parent/legal guardian.</p>
+
+                        <h4>AI Processing</h4>
+                        <p>Photos are processed through third-party AI services (currently Replicate). AI outputs are artistic interpretations and may not perfectly represent the original photo. We make reasonable efforts to preserve facial identity but cannot guarantee exact likeness.</p>
+
+                        <h4>Data Retention & Privacy</h4>
+                        <p>Customer photos are retained for a maximum of <strong>30 days</strong> after order completion, then permanently deleted. Photos are stored on encrypted storage during processing. API communications use HTTPS encryption.</p>
+                        <p>Your photos are sent to <strong>Replicate</strong> (replicate.com) for AI processing. We do not sell or share your photos with any other third parties.</p>
+
+                        <h4>Your Rights</h4>
+                        <p>You can request access to, correction of, or deletion of your data at any time. You can revoke consent at any time — all photos and AI intermediates will be deleted immediately.</p>
+
+                        <h4>Refund Policy</h4>
+                        <p>If the AI transformation is unsatisfactory, we will regenerate at no cost (up to 2 times). If still unsatisfied, we offer a full refund before printing.</p>
+                    </div>
+                </details>
+
+                <fieldset>
+                    <label>
+                        <input type="checkbox" name="consent" value="yes" required>
+                        I have read the terms above and confirm that the customer has consented to AI processing of their photo.
+                    </label>
+                </fieldset>
+
+                <button type="submit" id="submit-btn" disabled>Start Processing</button>
+            </form>
+        </article>
+
+        {% if jobs %}
+        <article>
+            <h2>Recent Jobs</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Job ID</th>
+                        <th>Style</th>
+                        <th>Status</th>
+                        <th>Quality</th>
+                        <th>Cost</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td><code>{{ job.id }}</code></td>
+                        <td>{{ job.style }}</td>
+                        <td>
+                            {% if job.status == 'completed' %}
+                                <mark>completed</mark>
+                            {% elif job.status == 'error' %}
+                                <mark class="error">error</mark>
+                            {% elif job.status == 'processing' %}
+                                <mark class="processing">processing...</mark>
+                            {% else %}
+                                {{ job.status }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if job.quality_score %}
+                                {{ "%.1f"|format(job.quality_score) }}
+                                {% set passed = job.quality_score >= 70 %}
+                                <span class="badge {{ 'badge-pass' if passed else 'badge-fail' }}">{{ "PASS" if passed else "FAIL" }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if job.meta and job.meta.manifest and job.meta.manifest.total_cost_estimate is defined %}
+                                ${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ job.created_at[:16] }}</td>
+                        <td>
+                            {% if job.status == 'completed' %}
+                                <a href="/preview/{{ job.id }}">Preview</a>
+                            {% else %}
+                                <a href="/status/{{ job.id }}">Status</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </article>
+        {% endif %}
+    </main>
+    <script>
+        (function() {
+            const photo = document.getElementById('photo');
+            const consent = document.querySelector('input[name="consent"]');
+            const btn = document.getElementById('submit-btn');
+            const existingInput = document.getElementById('existing_photo');
+            const reuseBox = document.getElementById('reuse-indicator');
+            const clearBtn = document.getElementById('clear-photo-btn');
+            const artStyle = document.getElementById('art_style');
+            const scene = document.getElementById('scene');
+            const styleInput = document.getElementById('style');
+
+            function updateStyle() {
+                styleInput.value = artStyle.value + '_' + scene.value;
+            }
+
+            function check() {
+                const hasNewFile = photo && photo.files && photo.files.length > 0;
+                const hasExisting = existingInput && existingInput.value;
+                const hasPhoto = hasNewFile || hasExisting;
+                const hasConsent = consent && consent.checked;
+                btn.disabled = !(hasPhoto && hasConsent);
+            }
+
+            // Clear reused photo — require a new upload
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    existingInput.value = '';
+                    reuseBox.style.display = 'none';
+                    photo.required = true;
+                    check();
+                });
+            }
+
+            // If user uploads a new file while reusing, hide the reuse indicator
+            if (photo) {
+                photo.addEventListener('change', function() {
+                    if (photo.files.length > 0 && reuseBox) {
+                        reuseBox.style.display = 'none';
+                        existingInput.value = '';
+                    }
+                    check();
+                });
+            }
+
+            if (consent) consent.addEventListener('change', check);
+            if (artStyle) artStyle.addEventListener('change', updateStyle);
+            if (scene) scene.addEventListener('change', updateStyle);
+            updateStyle();
+            check();
+        })();
+    </script>
+</body>
+</html>
