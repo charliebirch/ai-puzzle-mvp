@@ -191,7 +191,7 @@ async def status(request: Request, job_id: str):
     """Job status page with HTMX polling."""
     job = get_job(job_id)
     if not job:
-        return HTMLResponse("Job not found", status_code=404)
+        return RedirectResponse(url="/", status_code=303)
 
     return templates.TemplateResponse("processing.html", {
         "request": request,
@@ -204,7 +204,13 @@ async def status_poll(request: Request, job_id: str):
     """HTMX polling endpoint - returns updated status fragment."""
     job = get_job(job_id)
     if not job:
-        return HTMLResponse("Job not found", status_code=404)
+        # Return 286 to tell HTMX to stop polling, with a friendly message
+        return HTMLResponse(
+            '<article><h3>Job not found</h3>'
+            '<p>This job may have been lost due to a server restart. '
+            '<a href="/">Go back to dashboard</a> to start a new one.</p></article>',
+            status_code=286,
+        )
 
     # Parse metadata so templates can read step progress
     job["meta"] = _parse_metadata(job)

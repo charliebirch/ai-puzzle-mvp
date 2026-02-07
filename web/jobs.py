@@ -9,7 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-DB_PATH = Path("web/puzzle_photos_feedback.db")
+# Use absolute path relative to this file so it works regardless of CWD
+DB_PATH = Path(__file__).parent / "puzzle_photos_feedback.db"
 
 
 def _get_connection() -> sqlite3.Connection:
