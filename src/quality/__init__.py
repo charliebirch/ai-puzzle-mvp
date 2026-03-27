@@ -1,34 +1,38 @@
 """
 Quality assessment package.
 
-Provides unified quality scoring combining face similarity,
-image quality metrics, and resolution checks.
+Two scoring systems:
+1. **assess_quality()** — Legacy composite (face similarity + image quality).
+   Kept for backward compatibility with existing benchmarks.
+2. **score_puzzle_quality()** — New 11-metric puzzle suitability scorer.
+   Measures what matters for physical puzzle assembly.
+3. **assess_full_quality()** — Runs both: puzzle scorer (primary) + face similarity
+   (reported separately, not part of puzzle composite).
 
-Tuned for animated/cartoon puzzle art (not photorealism):
-- Color vibrancy rewards vivid saturated colors
-- Edge cleanliness rewards clean cartoon edges
-- Sharpness and contrast removed (penalized cartoon art)
-
-Weights are tuned for the no-face-swap cartoon pipeline where face
-similarity is typically 0.30–0.42. Visual cartoon quality (vibrancy,
-edges, color diversity) carries most of the weight.
+The puzzle scorer (from puzzle_scorer.py) is the primary quality gate.
+Face similarity is informational only — cartoon transforms naturally score low.
 """
 
 from typing import Dict, Optional
 
 from quality.face_similarity import score_face_similarity
 from quality.image_quality import assess_image_quality
+from quality.puzzle_scorer import (
+    METRIC_DESCRIPTIONS,
+    METRIC_WEIGHTS,
+    PuzzleGrade,
+    PuzzleScore,
+    score_puzzle_quality,
+)
 
-# Weights for composite score — tuned for cartoon-only pipeline (no face swap)
-# Face similarity reduced because cartoon transforms score 0.30–0.42 naturally.
-# Visual quality metrics (vibrancy, edges, palette) are the primary signals.
+# Legacy weights for backward-compatible assess_quality()
 WEIGHTS = {
-    "face_similarity": 0.15,            # reduced — cartoon doesn't need exact likeness
-    "color_vibrancy": 0.25,             # primary cartoon quality signal
-    "face_detection_confidence": 0.10,  # face is present and well-formed
-    "resolution": 0.10,                 # mostly binary after upscale
-    "edge_cleanliness": 0.20,           # clean cartoon edges, no artifacts
-    "color_diversity": 0.20,            # rich scenes with varied palette
+    "face_similarity": 0.15,
+    "color_vibrancy": 0.25,
+    "face_detection_confidence": 0.10,
+    "resolution": 0.10,
+    "edge_cleanliness": 0.20,
+    "color_diversity": 0.20,
 }
 
 
@@ -38,7 +42,10 @@ def assess_quality(
     target_pieces: int = 1000,
     save_thumbnails_dir: Optional[str] = None,
 ) -> Dict:
-    """Unified quality assessment returning a 0-100 composite score.
+    """Legacy quality assessment returning a 0-100 composite score.
+
+    Kept for backward compatibility with benchmarks. New code should use
+    assess_full_quality() or score_puzzle_quality() instead.
 
     Args:
         generated_path: Path to the generated image.
@@ -61,13 +68,10 @@ def assess_quality(
             source_path, generated_path, save_thumbnails_dir
         )
         if face_data:
-            # Normalize similarity from [-1, 1] to [0, 100]
             raw_sim = face_data.get("similarity", 0.0)
             face_score = max(0, min(100, (raw_sim + 1) * 50))
-            # Detection confidence
             face_det_score = face_data.get("generated_det_score", 0.0) * 100
 
-    # Composite score
     composite = (
         WEIGHTS["face_similarity"] * face_score
         + WEIGHTS["color_vibrancy"] * iq_scores["color_vibrancy"]
@@ -89,4 +93,60 @@ def assess_quality(
         "color_diversity": iq_scores["color_diversity"],
         "resolution": iq_scores["resolution"],
         "weights": WEIGHTS,
+    }
+
+
+def assess_full_quality(
+    generated_path: str,
+    source_path: Optional[str] = None,
+    puzzle_pieces: int = 1000,
+    save_thumbnails_dir: Optional[str] = None,
+) -> Dict:
+    """Full quality assessment: puzzle scorer (primary) + face similarity (informational).
+
+    The puzzle composite score is the quality gate. Face similarity is reported
+    separately since cartoon transforms naturally score 0.30-0.42.
+
+    Args:
+        generated_path: Path to the generated image.
+        source_path: Path to the original source photo (for face similarity).
+        puzzle_pieces: Target puzzle piece count.
+        save_thumbnails_dir: Optional dir to save face crop thumbnails.
+
+    Returns:
+        Dict with puzzle_score (PuzzleScore), face_similarity data,
+        and combined metadata.
+    """
+    # Primary: puzzle quality scoring (11 metrics, <2s)
+    puzzle = score_puzzle_quality(generated_path, puzzle_pieces)
+
+    # Secondary: face similarity (informational, not part of puzzle composite)
+    face_data = None
+    if source_path:
+        try:
+            face_data = score_face_similarity(
+                source_path, generated_path, save_thumbnails_dir
+            )
+        except Exception:
+            pass  # Face similarity is optional — don't block on failure
+
+    return {
+        "puzzle_score": puzzle,
+        "puzzle_composite": puzzle.composite,
+        "puzzle_grade": puzzle.grade.value,
+        "puzzle_pass": puzzle.grade in (PuzzleGrade.PASS,),
+        "puzzle_hard_fail": puzzle.grade == PuzzleGrade.HARD_FAIL,
+        "hard_fail_reasons": puzzle.hard_fail_reasons,
+        "per_metric": {
+            name: {
+                "raw": m.raw_value,
+                "score": m.normalized_score,
+                "weight": m.weight,
+                "hard_fail": m.hard_fail,
+                "description": METRIC_DESCRIPTIONS.get(name, name),
+            }
+            for name, m in puzzle.per_metric.items()
+        },
+        "face_similarity_raw": face_data.get("similarity", 0.0) if face_data else None,
+        "face_confidence": face_data.get("confidence_level") if face_data else None,
     }

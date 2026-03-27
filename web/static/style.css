@@ -47,6 +47,11 @@ table td, table th {
     color: white;
 }
 
+.badge-warning {
+    background-color: #ffc107;
+    color: black;
+}
+
 /* Rating radio group */
 .rating-group {
     display: flex;

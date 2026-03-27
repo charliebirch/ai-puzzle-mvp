@@ -84,6 +84,8 @@ def _process_job(job_id: str):
     try:
         from fulfill_order import fulfill_order
 
+        job_max_attempts = meta.get("max_attempts", 1)
+
         manifest = fulfill_order(
             photo_path=job["photo_path"],
             style=job["style"],
@@ -94,6 +96,7 @@ def _process_job(job_id: str):
             skip_consent=False,
             face_swap=face_swap_enabled,
             seed=job_seed,
+            max_attempts=job_max_attempts,
             progress_callback=on_progress,
         )
 
@@ -102,15 +105,22 @@ def _process_job(job_id: str):
         preview_path = str(order_dir / "preview.jpg")
         print_path = str(order_dir / "print_ready.jpg")
 
-        quality_score = manifest.get("steps", {}).get("quality", {}).get("composite_score", 0)
+        # Use puzzle composite score (new system), fall back to legacy
+        quality_data = manifest.get("steps", {}).get("quality", {})
+        quality_score = quality_data.get("puzzle_composite", quality_data.get("composite_score", 0))
 
         # Merge manifest into metadata
         final_meta = _parse_metadata(get_job(job_id))
         final_meta["manifest"] = manifest
 
+        # Check if quality was rejected (hard fail)
+        status = "completed"
+        if quality_data.get("status") == "quality_rejected":
+            status = "completed"  # Still mark completed, preview shows rejection
+
         update_job(
             job_id,
-            status="completed",
+            status=status,
             preview_path=preview_path if Path(preview_path).exists() else None,
             print_ready_path=print_path if Path(print_path).exists() else None,
             quality_score=quality_score,
@@ -150,9 +160,18 @@ async def upload(
     style: str = Form("animation_village"),
     backend: str = Form("flux_kontext"),
     puzzle_size: int = Form(1000),
+    subject: str = Form(""),
     consent: str = Form(...),
     existing_photo: str = Form(""),
     seed: Optional[str] = Form(""),
+    max_attempts: int = Form(1),
+    # Structured subject fields (Phase 4)
+    age_range: str = Form(""),
+    gender: str = Form(""),
+    hair_color: str = Form(""),
+    hair_style: str = Form(""),
+    skin_tone: str = Form(""),
+    extras: str = Form(""),
 ):
     """Handle photo upload and start processing."""
     job_id = f"WEB-{uuid.uuid4().hex[:8].upper()}"
@@ -169,8 +188,23 @@ async def upload(
     else:
         return HTMLResponse("No photo provided", status_code=400)
 
-    # Face swap disabled for all web jobs — it makes images too photorealistic
-    # Parse seed — empty string or non-numeric means random (no seed)
+    # Build subject description — prefer structured fields, fall back to freetext
+    final_subject = subject.strip()
+    if age_range or gender or hair_color or hair_style:
+        from subject_builder import build_subject_description
+        final_subject = build_subject_description(
+            age_range=age_range or "child",
+            gender=gender or "person",
+            hair_color=hair_color,
+            hair_style=hair_style,
+            skin_tone=skin_tone,
+            extras=extras,
+        )
+    if not final_subject:
+        final_subject = "a smiling person"
+
+    # Face swap disabled for all web jobs
+    # Parse seed
     parsed_seed = None
     if seed and seed.strip():
         try:
@@ -178,7 +212,7 @@ async def upload(
         except ValueError:
             pass
 
-    meta = {"face_swap": False}
+    meta = {"face_swap": False, "max_attempts": max_attempts}
     if parsed_seed is not None:
         meta["seed"] = parsed_seed
 
@@ -187,7 +221,7 @@ async def upload(
         job_id=job_id,
         photo_path=photo_path,
         style=style,
-        subject="a smiling person",
+        subject=final_subject,
         backend=backend,
         puzzle_size=puzzle_size,
         metadata=json.dumps(meta),
@@ -313,5 +347,9 @@ async def serve_image(job_id: str, image_type: str):
         generated = Path("orders") / job_id / "generated.png"
         if generated.exists():
             return FileResponse(str(generated))
+    elif image_type == "heatmap":
+        heatmap = Path("orders") / job_id / "heatmap.png"
+        if heatmap.exists():
+            return FileResponse(str(heatmap))
 
     return HTMLResponse("Not found", status_code=404)
