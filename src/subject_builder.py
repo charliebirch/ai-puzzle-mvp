@@ -14,6 +14,7 @@ import numpy as np
 # Valid options for each field
 AGE_RANGES = ["toddler", "child", "teen", "adult"]
 GENDERS = ["boy", "girl", "person"]
+ETHNICITIES = ["", "Black", "White", "Asian", "South Asian", "Hispanic/Latino", "Middle Eastern", "Mixed"]
 HAIR_COLORS = ["blonde", "brown", "black", "red", "gray", "white", "auburn", "strawberry blonde"]
 HAIR_STYLES = ["short", "long", "curly", "straight", "ponytail", "braids", "buzzed", "wavy", "bun", "afro"]
 SKIN_TONES = ["very light", "light", "medium", "olive", "brown", "dark brown"]
@@ -22,6 +23,7 @@ SKIN_TONES = ["very light", "light", "medium", "olive", "brown", "dark brown"]
 def build_subject_description(
     age_range: str = "child",
     gender: str = "person",
+    ethnicity: str = "",
     hair_color: str = "",
     hair_style: str = "",
     skin_tone: str = "",
@@ -29,20 +31,32 @@ def build_subject_description(
 ) -> str:
     """Build a natural subject description from structured fields.
 
+    Ethnicity and skin tone are critical for identity preservation —
+    the AI model will alter these if not explicitly stated in the prompt.
+
     Args:
         age_range: One of AGE_RANGES (toddler/child/teen/adult).
         gender: One of GENDERS (boy/girl/person).
+        ethnicity: Ethnicity (e.g., "Black", "Asian"). Important for identity.
         hair_color: Hair color (e.g., "blonde", "brown").
-        hair_style: Hair style (e.g., "short", "curly").
-        skin_tone: Skin tone description (e.g., "light", "medium").
+        hair_style: Hair style (e.g., "short", "curly", "afro").
+        skin_tone: Skin tone description (e.g., "light", "dark brown").
         extras: Freetext additional features (e.g., "freckles, glasses").
 
     Returns:
-        Natural language description like "a child boy with short blonde hair,
-        light skin, freckles".
+        Natural language description like "a young Black boy with afro black hair,
+        dark brown skin, freckles".
     """
-    # Build base: "a child boy" or "a teen girl"
-    parts = [f"a {age_range} {gender}"]
+    # Build base: "a young Black boy" or "a teen Asian girl"
+    base = f"a {age_range}"
+    if ethnicity:
+        base += f" {ethnicity}"
+    base += f" {gender}"
+    parts = [base]
+
+    # Skin tone — always include if available (critical for identity)
+    if skin_tone:
+        parts.append(f"{skin_tone} skin")
 
     # Hair description
     hair_parts = []
@@ -51,11 +65,7 @@ def build_subject_description(
     if hair_color:
         hair_parts.append(hair_color)
     if hair_parts:
-        parts.append(f"with {' '.join(hair_parts)} hair")
-
-    # Skin tone
-    if skin_tone:
-        parts.append(f"{skin_tone} skin")
+        parts.append(f"{' '.join(hair_parts)} hair")
 
     # Extras
     if extras and extras.strip():

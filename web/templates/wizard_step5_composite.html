@@ -1,0 +1,98 @@
+{% extends "wizard_base.html" %}
+{% block title %}Step 5: Scene & Final Composite — {{ job_id }}{% endblock %}
+
+{% block content %}
+<article>
+    <h2>Step 5: Scene & Final Composite</h2>
+    <p>Generating a detailed scene, compositing your character into it (3 attempts), scoring each, and upscaling the best. Cost: <strong>~$0.32</strong></p>
+
+    {% if step_data and step_data.status == "complete" %}
+    <!-- Final result -->
+    <h3>Your Puzzle Image</h3>
+    <div style="max-width: 600px; margin: 0 auto 1.5rem;">
+        <img src="/wizard/{{ job_id }}/image/final" alt="Final puzzle composite" class="preview-img">
+    </div>
+
+    <div class="grid">
+        <article>
+            <h4>The Scene</h4>
+            <img src="/wizard/{{ job_id }}/image/scene" alt="Generated scene" class="preview-img">
+        </article>
+        <article>
+            <h4>Your Character</h4>
+            <img src="/wizard/{{ job_id }}/image/costumed" alt="Costumed character" class="preview-img">
+        </article>
+    </div>
+
+    <article>
+        <h4>Generation Details</h4>
+        <table>
+            <tbody>
+                <tr>
+                    <td>Quality Score</td>
+                    <td><strong>{{ "%.1f"|format(step_data.best_score) }}/100</strong>
+                        {% if step_data.best_score >= 80 %}
+                        <span class="badge badge-pass">PASS</span>
+                        {% elif step_data.best_score >= 65 %}
+                        <span class="badge badge-warning">OK</span>
+                        {% else %}
+                        <span class="badge badge-fail">LOW</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Best of</td>
+                    <td>3 candidates (picked #{{ step_data.best_candidate }})</td>
+                </tr>
+                <tr>
+                    <td>Final Resolution</td>
+                    <td>{{ step_data.final_size[0] }}x{{ step_data.final_size[1] }}px (upscaled)</td>
+                </tr>
+                <tr>
+                    <td>Time</td>
+                    <td>{{ step_data.elapsed_seconds }}s</td>
+                </tr>
+                <tr>
+                    <td>Step Cost</td>
+                    <td>${{ "%.2f"|format(step_data.cost) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </article>
+
+    <div class="grid">
+        <a href="/wizard/{{ job_id }}/download/final" role="button">Download Puzzle Image</a>
+        <a href="/wizard/new" role="button" class="secondary">Start New Puzzle</a>
+    </div>
+
+    {% elif step_data and step_data.status == "error" %}
+    <article class="error-box">
+        <h3>Error</h3>
+        <p>{{ step_data.error }}</p>
+        <a href="/wizard/{{ job_id }}/step/5" role="button" class="secondary">Retry</a>
+    </article>
+
+    {% else %}
+    <!-- Processing -->
+    <div class="grid">
+        <div>
+            <h4>Your Costumed Character</h4>
+            <img src="/wizard/{{ job_id }}/image/costumed" alt="Costumed character" class="preview-img">
+        </div>
+        <div>
+            <h4>Processing...</h4>
+            <div id="poll-container"
+                 hx-get="/wizard/{{ job_id }}/step/5/poll"
+                 hx-trigger="load, every 3s"
+                 hx-swap="innerHTML">
+                <article aria-busy="true">
+                    <p>Generating scene and compositing... (1-2 minutes)</p>
+                    <progress value="0" max="4"></progress>
+                </article>
+            </div>
+        </div>
+    </div>
+    <div hx-post="/wizard/{{ job_id }}/step/5/run" hx-trigger="load" hx-swap="none"></div>
+    {% endif %}
+</article>
+{% endblock %}

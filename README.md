@@ -1,144 +1,43 @@
 # AI Puzzle MVP
 
-Transform family photos into magical fantasy character jigsaw puzzles using AI. Supports multiple AI backends with face-preserving identity lock, automated quality scoring, print-ready export, and a web interface for order processing.
+Transform customer photos into personalised Pixar-style animated jigsaw puzzles for Etsy.
 
-## Architecture
+## How It Works
 
-```
-AI-PUZZLE-MVP/
-├── src/
-│   ├── backends/              # AI model backends
-│   │   ├── base.py            # Abstract base class
-│   │   ├── seedream.py        # ByteDance Seedream-4 (two-step)
-│   │   ├── instantid.py       # InstantID (SDXL + face lock)
-│   │   ├── flux_pulid.py      # Flux-PuLID (face identity)
-│   │   ├── ip_adapter_faceid.py  # IP-Adapter FaceID
-│   │   └── registry.py        # Backend factory
-│   ├── quality/               # Quality assessment
-│   │   ├── face_similarity.py # InsightFace ArcFace embeddings
-│   │   ├── image_quality.py   # Sharpness, contrast, color metrics
-│   │   ├── human_eval.py      # Human evaluation CLI
-│   │   └── __init__.py        # Unified assess_quality()
-│   ├── puzzle_maker.py        # Main CLI pipeline (model-agnostic)
-│   ├── benchmark_runner.py    # Multi-backend benchmark matrix
-│   ├── fulfill_order.py       # End-to-end order fulfillment
-│   ├── export.py              # Print-ready & preview export
-│   ├── upscale.py             # Real-ESRGAN upscaling
-│   ├── print_specs.py         # Puzzle dimensions & print profiles
-│   ├── style_presets.py       # 4 style presets
-│   ├── consent.py             # Consent event logging
-│   ├── test_suite.py          # Test photo registry
-│   └── face_guidance.py       # Legacy guidance maps
-├── web/
-│   ├── app.py                 # FastAPI web interface
-│   ├── jobs.py                # SQLite job tracking
-│   ├── templates/             # Jinja2 + HTMX templates
-│   └── static/                # CSS
-├── docs/
-│   ├── terms-of-service.md
-│   ├── privacy-policy.md
-│   ├── consent-flow.md
-│   └── etsy-listing-template.md
-├── input/                     # Customer photos (one subfolder per person)
-├── output/                    # Generated output
-└── orders/                    # Per-order directories
-```
+A 5-step AI pipeline turns a customer photo into a puzzle-ready image:
 
-## Quick Start
+1. **Remove Background** — strips the background, isolates the person
+2. **Generate Character** — transforms the person into a Pixar-style 3D animated character
+3. **Apply Costume** — dresses the character in a themed outfit (fantasy adventurer, astronaut, etc.)
+4. **Generate Scene** — creates a detailed empty scene packed with puzzle-friendly detail
+5. **Composite** — places the costumed character into the scene seamlessly
+
+Each step uses AI models on [Replicate](https://replicate.com). Total cost per puzzle: **~$0.33-$0.49**.
+
+## Scenes
+
+- **Magical Village** — cobblestone streets, crooked houses, floating lanterns, bridge over a stream
+- **Space Adventure** — planets, rocket ships, nebulas, friendly aliens
+- **Underwater World** — coral reefs, sea creatures, sunken treasure, shimmering bubbles
+
+## Quality
+
+Every output is scored by an automated puzzle quality checker (11 metrics, 0-100 scale). A good puzzle needs detail in every corner, diverse colours, and no large flat areas. Our best score: **95.3/100**.
+
+## Setup
 
 ```bash
-# Setup
 python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Set API key
-echo "REPLICATE_API_TOKEN=r8_your_key_here" > .env
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env  # Add your REPLICATE_API_TOKEN
 ```
 
-## Usage
+## Status
 
-### Generate a puzzle (CLI)
-```bash
-python src/puzzle_maker.py \
-  --input input/Chaz/charlie-outside.jpg \
-  --output output/puzzle.png \
-  --style fairytale \
-  --subject "a young girl" \
-  --backend instantid
-```
+**Pre-launch.** Pipeline proven with multiple test subjects. Web app rebuild in progress.
 
-### Run benchmarks
-```bash
-python src/benchmark_runner.py \
-  --backends instantid flux_pulid seedream \
-  --styles fairytale storybook_cartoon \
-  --subject "a smiling child"
-```
+## Docs
 
-### Fulfill an order
-```bash
-python src/fulfill_order.py \
-  --photo customer.jpg \
-  --style fairytale \
-  --subject "a young girl" \
-  --puzzle-size 1000 \
-  --order-id ETSY-12345 \
-  --backend instantid
-```
-
-### Web interface
-```bash
-uvicorn web.app:app --reload --port 8000
-# Open http://localhost:8000
-```
-
-### Quality scoring
-```bash
-# Image quality metrics
-python src/quality/image_quality.py output/generated.png
-
-# Human evaluation
-python src/quality/human_eval.py eval output/benchmarks/ --source input/Chaz/charlie-outside.jpg
-python src/quality/human_eval.py summary
-```
-
-## AI Backends
-
-| Backend | Face Lock | Mode | Cost/Run |
-|---------|-----------|------|----------|
-| Seedream-4 | No | Two-step | $0.03 |
-| Seedream-4 Single | No | Single | $0.03 |
-| InstantID | Yes | Single | $0.015 |
-| Flux-PuLID | Yes | Single | $0.021 |
-| IP-Adapter FaceID | Yes | Single | $0.058 |
-
-## Styles
-
-- **fairytale** - Enchanted prince/princess in magical forest
-- **superhero** - Comic-book hero on futuristic skyline
-- **pixel_quest** - 8-bit RPG adventurer in retro world
-- **storybook_cartoon** - Pixar-like character in whimsical village
-
-## Quality Scoring
-
-Composite 0-100 score:
-- Face similarity (35%) - InsightFace ArcFace embeddings
-- Resolution (20%) - vs print target dimensions
-- Sharpness (15%) - Laplacian variance
-- Color diversity (15%) - Histogram entropy
-- Contrast (10%) - RMS contrast
-- Face detection confidence (5%)
-
-## Print Specs
-
-| Size | Dimensions | Pixels (300 DPI) | Price |
-|------|-----------|-------------------|-------|
-| 500pc | 16" x 20" | 4800 x 6000 | $39.99 |
-| 1000pc | 20" x 28" | 6000 x 8400 | $49.99 |
-
-## Requirements
-
-- Python 3.10+
-- Replicate API key
-- Internet connection for AI and upscaling
+- [Best Practices](docs/BEST_PRACTICES.md) — what works, what doesn't, prompt engineering rules
+- [Pipeline Reference](docs/PIPELINE.md) — exact models, prompts, parameters, costs
+- [Puzzle Design Guide](docs/complete-ai-puzzle-guide-deep-research.md) — research on what makes a good puzzle

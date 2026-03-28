@@ -1,0 +1,52 @@
+{% extends "wizard_base.html" %}
+{% block title %}Step 4: Costume — {{ job_id }}{% endblock %}
+
+{% block content %}
+<article>
+    <h2>Step 4: Costume</h2>
+    <p>Dressing the character in a themed outfit for the puzzle scene. Cost: <strong>$0.08</strong></p>
+
+    {% if step_data and step_data.status == "complete" %}
+    <div class="grid">
+        <div>
+            <h4>Character</h4>
+            <img src="/wizard/{{ job_id }}/image/character" alt="Character" class="preview-img">
+        </div>
+        <div>
+            <h4>In Costume</h4>
+            <img src="/wizard/{{ job_id }}/image/costumed" alt="Costumed character" class="preview-img">
+        </div>
+    </div>
+    <p>Costume applied in {{ step_data.elapsed_seconds }}s (cost: ${{ "%.2f"|format(step_data.cost) }})</p>
+    <a href="/wizard/{{ job_id }}/step/5" role="button">Continue to Scene & Compositing</a>
+
+    {% elif step_data and step_data.status == "error" %}
+    <article class="error-box">
+        <h3>Error</h3>
+        <p>{{ step_data.error }}</p>
+        <a href="/wizard/{{ job_id }}/step/4" role="button" class="secondary">Retry</a>
+    </article>
+
+    {% else %}
+    <div class="grid">
+        <div>
+            <h4>Character</h4>
+            <img src="/wizard/{{ job_id }}/image/character" alt="Character" class="preview-img">
+        </div>
+        <div>
+            <h4>Processing...</h4>
+            <div id="poll-container"
+                 hx-get="/wizard/{{ job_id }}/step/4/poll"
+                 hx-trigger="load, every 3s"
+                 hx-swap="innerHTML">
+                <article aria-busy="true">
+                    <p>Adding costume... (15-30 seconds)</p>
+                    <progress></progress>
+                </article>
+            </div>
+        </div>
+    </div>
+    <div hx-post="/wizard/{{ job_id }}/step/4/run" hx-trigger="load" hx-swap="none"></div>
+    {% endif %}
+</article>
+{% endblock %}

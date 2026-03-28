@@ -1,0 +1,167 @@
+{% extends "wizard_base.html" %}
+{% block title %}Step 1: Upload Photo — AI Puzzle Workshop{% endblock %}
+
+{% block content %}
+<article>
+    <h2>Step 1: Upload Your Photo</h2>
+    <p>Upload a clear photo of the person you'd like to turn into a puzzle character.</p>
+
+    <form action="/wizard/start" method="post" enctype="multipart/form-data">
+        <label for="photo">Customer Photo</label>
+        <input type="file" id="photo" name="photo" accept=".jpg,.jpeg,.png,.heic,.heif" required>
+
+        <aside class="upload-tips">
+            <strong>For best results:</strong>
+            <ul>
+                <li>Clear, well-lit photo with the face clearly visible</li>
+                <li>Front-facing or slight angle — avoid profiles</li>
+                <li>One person per photo (no group shots)</li>
+                <li>Avoid sunglasses or anything covering the face</li>
+                <li>Background doesn't matter — it gets removed automatically</li>
+            </ul>
+        </aside>
+
+        <label><strong>Describe the Person</strong></label>
+        <div class="grid">
+            <div>
+                <label for="age_range">Age Range</label>
+                <select id="age_range" name="age_range">
+                    <option value="toddler">Toddler (1-3)</option>
+                    <option value="child" selected>Child (4-12)</option>
+                    <option value="teen">Teen (13-17)</option>
+                    <option value="adult">Adult (18+)</option>
+                </select>
+            </div>
+            <div>
+                <label for="gender">Gender</label>
+                <select id="gender" name="gender">
+                    <option value="boy">Boy</option>
+                    <option value="girl">Girl</option>
+                    <option value="person" selected>Person</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid">
+            <div>
+                <label for="ethnicity">Ethnicity</label>
+                <select id="ethnicity" name="ethnicity">
+                    <option value="" selected>-- Select --</option>
+                    <option value="Black">Black</option>
+                    <option value="White">White</option>
+                    <option value="Asian">Asian</option>
+                    <option value="South Asian">South Asian</option>
+                    <option value="Hispanic/Latino">Hispanic/Latino</option>
+                    <option value="Middle Eastern">Middle Eastern</option>
+                    <option value="Mixed">Mixed</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid">
+            <div>
+                <label for="hair_color">Hair Color</label>
+                <select id="hair_color" name="hair_color">
+                    <option value="">-- Select --</option>
+                    <option value="blonde">Blonde</option>
+                    <option value="brown">Brown</option>
+                    <option value="black">Black</option>
+                    <option value="red">Red</option>
+                    <option value="auburn">Auburn</option>
+                    <option value="strawberry blonde">Strawberry Blonde</option>
+                    <option value="gray">Gray</option>
+                    <option value="white">White</option>
+                </select>
+            </div>
+            <div>
+                <label for="hair_style">Hair Style</label>
+                <select id="hair_style" name="hair_style">
+                    <option value="">-- Select --</option>
+                    <option value="short">Short</option>
+                    <option value="long">Long</option>
+                    <option value="curly">Curly</option>
+                    <option value="straight">Straight</option>
+                    <option value="wavy">Wavy</option>
+                    <option value="ponytail">Ponytail</option>
+                    <option value="braids">Braids</option>
+                    <option value="bun">Bun</option>
+                    <option value="afro">Afro</option>
+                    <option value="buzzed">Buzzed</option>
+                </select>
+            </div>
+            <div>
+                <label for="skin_tone">Skin Tone</label>
+                <select id="skin_tone" name="skin_tone">
+                    <option value="" selected>Auto-detect</option>
+                    <option value="very light">Very Light</option>
+                    <option value="light">Light</option>
+                    <option value="medium">Medium</option>
+                    <option value="olive">Olive</option>
+                    <option value="brown">Brown</option>
+                    <option value="dark brown">Dark Brown</option>
+                </select>
+            </div>
+        </div>
+        <label for="extras">Additional Features (optional)</label>
+        <input type="text" id="extras" name="extras" placeholder="e.g., freckles, glasses, dimples">
+        <small>Hair color and style are the most important for a good likeness.</small>
+
+        <details>
+            <summary>Advanced</summary>
+            <label for="subject">Subject Description (freetext override)</label>
+            <input type="text" id="subject" name="subject" value=""
+                   placeholder="Leave empty to use structured fields above">
+            <small>If filled, this overrides the structured fields.</small>
+
+            <label for="seed">Seed (optional, for reproducibility)</label>
+            <input type="number" id="seed" name="seed" placeholder="Leave empty for random">
+        </details>
+
+        <details class="terms-details">
+            <summary>Terms & Conditions (read before consenting)</summary>
+            <div class="terms-box">
+                <h4>Photo Submission & License</h4>
+                <p>By submitting a photo, you grant us a limited, non-exclusive license to process the image using AI tools solely for the purpose of creating your custom puzzle. You represent that you have the right to submit the photo.</p>
+
+                <h4>AI Processing</h4>
+                <p>Photos are processed through third-party AI services (Replicate). AI outputs are artistic interpretations and may not perfectly represent the original photo.</p>
+
+                <h4>Data Retention</h4>
+                <p>Customer photos are retained for a maximum of <strong>30 days</strong> after order completion, then permanently deleted. Photos are stored on encrypted storage during processing.</p>
+
+                <h4>Refund Policy</h4>
+                <p>If the AI transformation is unsatisfactory, we will regenerate at no cost (up to 2 times). If still unsatisfied, we offer a full refund before printing.</p>
+            </div>
+        </details>
+
+        <fieldset>
+            <label>
+                <input type="checkbox" name="consent" value="yes" id="consent-check" required>
+                I confirm the customer has consented to AI processing of their photo.
+            </label>
+        </fieldset>
+
+        <p class="cost-estimate">
+            <strong>Estimated cost:</strong> ~$0.49 for full pipeline (background removal, character, costume, scene, 3 composite candidates + upscale)
+        </p>
+
+        <button type="submit" id="submit-btn" disabled>Start Puzzle Creation</button>
+    </form>
+</article>
+
+<script>
+(function() {
+    const photo = document.getElementById('photo');
+    const consent = document.getElementById('consent-check');
+    const btn = document.getElementById('submit-btn');
+
+    function check() {
+        const hasPhoto = photo && photo.files && photo.files.length > 0;
+        const hasConsent = consent && consent.checked;
+        btn.disabled = !(hasPhoto && hasConsent);
+    }
+
+    if (photo) photo.addEventListener('change', check);
+    if (consent) consent.addEventListener('change', check);
+    check();
+})();
+</script>
+{% endblock %}

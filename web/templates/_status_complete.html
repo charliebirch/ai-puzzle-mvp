@@ -1,40 +1,11 @@
 <article>
     <h3>Complete!</h3>
-    {% if job.meta is defined and job.meta.manifest is defined and job.meta.manifest.steps is defined %}
-    {% set q = job.meta.manifest.steps.quality|default({}) %}
-    <p>
-        {# New puzzle scoring #}
-        {% if q.puzzle_composite is defined %}
-        Puzzle Quality: <strong>{{ "%.1f"|format(q.puzzle_composite) }}/100</strong>
-        {% set grade = q.puzzle_grade|default("") %}
-        {% if grade == "PASS" %}
-            <span class="badge badge-pass">PASS</span>
-        {% elif grade == "WARNING" %}
-            <span class="badge badge-warning">WARNING</span>
-        {% elif grade == "HARD_FAIL" %}
-            <span class="badge badge-fail">HARD FAIL</span>
-        {% else %}
-            <span class="badge badge-fail">{{ grade }}</span>
-        {% endif %}
-        {# Legacy scoring fallback #}
-        {% elif job.quality_score %}
-        {% set passed = job.quality_score >= 70 %}
-        Quality: <strong>{{ "%.1f"|format(job.quality_score) }}/100</strong>
-        <span class="badge {{ 'badge-pass' if passed else 'badge-fail' }}">{{ "PASS" if passed else "FAIL" }}</span>
-        {% endif %}
-        | Cost: <strong>${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}</strong>
-    </p>
-    {% if q.hard_fail_reasons %}
-    <p style="color: #dc3545;">
-        <strong>Quality rejected:</strong>
-        {% for reason in q.hard_fail_reasons %}{{ reason }}{% if not loop.last %}; {% endif %}{% endfor %}
-    </p>
-    {% endif %}
+    {% if job.meta is defined and job.meta.manifest is defined %}
+    <p>Cost: <strong>${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}</strong></p>
     {% endif %}
     <div class="grid">
         <a href="/preview/{{ job.id }}" role="button">View Preview</a>
         <a href="/download/{{ job.id }}/preview" role="button" class="secondary">Download Preview</a>
-        {% if job.print_ready_path %}<a href="/download/{{ job.id }}/print_ready" role="button" class="contrast">Download Print-Ready</a>{% endif %}
     </div>
     <p style="margin-top: 1rem;">
         <a href="/">Start New Order</a> | <a href="/?rerun={{ job.id }}">Re-run with Different Style</a>

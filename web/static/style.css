@@ -149,3 +149,116 @@ table td, table th {
 .upload-tips li {
     margin-bottom: 0.15rem;
 }
+
+/* ===== Wizard Progress Bar ===== */
+.wizard-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 1.5rem 0;
+    padding: 0;
+}
+
+.wizard-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 80px;
+}
+
+.step-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9em;
+    border: 2px solid #ccc;
+    background: white;
+    color: #999;
+}
+
+.wizard-step.done .step-circle {
+    background: #198754;
+    border-color: #198754;
+    color: white;
+}
+
+.wizard-step.active .step-circle {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
+
+.step-label {
+    font-size: 0.75em;
+    text-align: center;
+    color: #666;
+}
+
+.wizard-step.active .step-label {
+    color: #0d6efd;
+    font-weight: bold;
+}
+
+.wizard-step.done .step-label {
+    color: #198754;
+}
+
+.step-line {
+    flex: 1;
+    height: 2px;
+    background: #ccc;
+    min-width: 20px;
+    max-width: 60px;
+    margin-bottom: 1.25rem;
+}
+
+.step-line.done {
+    background: #198754;
+}
+
+/* Cost tracker */
+.cost-tracker {
+    text-align: center;
+    font-size: 0.9em;
+    color: #666;
+    margin-top: -0.5rem;
+    margin-bottom: 1rem;
+}
+
+.cost-estimate {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 1rem;
+}
+
+/* Error box */
+.error-box {
+    border-left: 4px solid #dc3545;
+    background: #fff5f5;
+}
+
+/* Photo quality warnings */
+.photo-warnings {
+    background: #fff8e1;
+    border-left: 4px solid #ffc107;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.9em;
+}
+
+.photo-warnings ul {
+    margin: 0.25rem 0 0.25rem 0;
+    padding-left: 1.25rem;
+}
+
+.photo-warnings li {
+    margin-bottom: 0.15rem;
+}
+

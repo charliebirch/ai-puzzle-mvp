@@ -43,6 +43,9 @@ orders/
 uploads/
 consent_log.jsonl
 
+# Archived old code and test outputs
+_archive/
+
 # Customer photos (keep out of git)
 input/Chaz/
 input/Edgar/

@@ -1,0 +1,69 @@
+{% extends "wizard_base.html" %}
+{% block title %}Step 2: Background Removal — {{ job_id }}{% endblock %}
+
+{% block content %}
+<article>
+    <h2>Step 2: Background Removal</h2>
+    <p>Removing the background so the AI can focus on the person. Cost: <strong>$0.01</strong></p>
+
+    {% set step1 = job.meta.steps["1"] if job.meta is defined and job.meta.steps is defined and job.meta.steps["1"] is defined else {} %}
+    {% if step1.warnings %}
+    <aside class="photo-warnings">
+        <strong>Photo quality notes:</strong>
+        <ul>
+            {% for warning in step1.warnings %}
+            <li>{{ warning }}</li>
+            {% endfor %}
+        </ul>
+        <small>These are suggestions — you can continue anyway.</small>
+    </aside>
+    {% endif %}
+
+    {% if step_data and step_data.status == "complete" %}
+    <!-- Step complete — show before/after -->
+    <div class="grid">
+        <div>
+            <h4>Original</h4>
+            <img src="/wizard/{{ job_id }}/image/input_prepared" alt="Original photo" class="preview-img">
+        </div>
+        <div>
+            <h4>Background Removed</h4>
+            <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
+        </div>
+    </div>
+    <p>Background removed in {{ step_data.elapsed_seconds }}s (cost: ${{ "%.2f"|format(step_data.cost) }})</p>
+    <a href="/wizard/{{ job_id }}/step/3" role="button">Continue to Character Generation</a>
+
+    {% elif step_data and step_data.status == "error" %}
+    <article class="error-box">
+        <h3>Error</h3>
+        <p>{{ step_data.error }}</p>
+        <a href="/wizard/{{ job_id }}/step/2" role="button" class="secondary">Retry</a>
+    </article>
+
+    {% else %}
+    <!-- Processing — show original + spinner -->
+    <div class="grid">
+        <div>
+            <h4>Your Photo</h4>
+            <img src="/wizard/{{ job_id }}/image/input_prepared" alt="Original photo" class="preview-img">
+        </div>
+        <div>
+            <h4>Processing...</h4>
+            <div id="poll-container"
+                 hx-get="/wizard/{{ job_id }}/step/2/poll"
+                 hx-trigger="load, every 3s"
+                 hx-swap="innerHTML">
+                <article aria-busy="true">
+                    <p>Removing background... (10-15 seconds)</p>
+                    <progress></progress>
+                </article>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-trigger the processing -->
+    <div hx-post="/wizard/{{ job_id }}/step/2/run" hx-trigger="load" hx-swap="none"></div>
+    {% endif %}
+</article>
+{% endblock %}

@@ -1,0 +1,36 @@
+{# HTMX polling fragment for wizard steps.
+
+   Used by /wizard/{job_id}/step/{n}/poll endpoints.
+   Returns either a processing spinner or a redirect trigger when complete.
+#}
+
+{% if status == "complete" %}
+{# Step is done — trigger a full page reload to show the result #}
+<article>
+    <h3>Done!</h3>
+    <p>Step complete.</p>
+</article>
+<script>window.location.reload();</script>
+
+{% elif status == "error" %}
+<article>
+    <h3>Error</h3>
+    <p>{{ error }}</p>
+    <a href="/wizard/{{ job_id }}/step/{{ step }}" role="button" class="secondary">Retry</a>
+</article>
+
+{% else %}
+{# Still processing — continue polling #}
+<article aria-busy="true"
+         hx-get="/wizard/{{ job_id }}/step/{{ step }}/poll"
+         hx-trigger="every 3s"
+         hx-swap="outerHTML">
+    {% if sub_label %}
+    <p>{{ sub_label }}... ({{ sub_step }}/{{ sub_total }})</p>
+    <progress value="{{ sub_step }}" max="{{ sub_total }}"></progress>
+    {% else %}
+    <p>{{ label|default("Processing...") }}</p>
+    <progress></progress>
+    {% endif %}
+</article>
+{% endif %}

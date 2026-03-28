@@ -1,0 +1,462 @@
+"""
+Pipeline step functions for the 5-step puzzle generation workflow.
+
+Each function handles one step, takes simple arguments (paths, strings),
+and returns a result dict. No web framework dependencies.
+
+Steps:
+1. Validate & prepare photo
+2. Remove background ($0.01)
+3. Generate Pixar character ($0.08)
+4. Add themed costume ($0.08)
+5. Generate scene + 3 compositing methods ($0.32)
+
+Total cost: ~$0.49 per full run.
+"""
+
+import json
+import time
+from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+from typing import Callable, Optional
+
+import requests
+from PIL import Image, ImageOps
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
+
+
+def step_validate_and_prepare(photo_path: str, order_dir: str) -> dict:
+    """Step 1: Validate photo and prepare input image.
+
+    Checks file type, converts HEIC if needed, EXIF-corrects, validates
+    size, checks for face detection and blur, and saves as input_prepared.png.
+
+    Args:
+        photo_path: Path to the uploaded photo.
+        order_dir: Path to the order output directory.
+
+    Returns:
+        dict with input_prepared path, size, warnings, and quality checks.
+
+    Raises:
+        ValueError: If file type is not supported or image is too small.
+    """
+    import subprocess
+
+    import cv2
+    import numpy as np
+
+    order_dir = Path(order_dir)
+    order_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check file type
+    ext = Path(photo_path).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise ValueError(
+            f"Unsupported file type '{ext}'. Please upload a JPEG, PNG, or HEIC image."
+        )
+
+    # Convert HEIC to JPEG if needed (Pillow doesn't support HEIC natively)
+    if ext in (".heic", ".heif"):
+        converted_path = str(Path(photo_path).with_suffix(".jpg"))
+        subprocess.run(
+            ["sips", "-s", "format", "jpeg", photo_path, "--out", converted_path],
+            check=True, capture_output=True,
+        )
+        photo_path = converted_path
+
+    img = ImageOps.exif_transpose(Image.open(photo_path))
+    w, h = img.size
+
+    warnings = []
+
+    # Hard reject: too small
+    if w < 256 or h < 256:
+        raise ValueError(f"Photo too small ({w}x{h}). Minimum 256x256 required.")
+
+    # Soft warning: small but usable
+    if w < 512 or h < 512:
+        warnings.append(f"Photo is small ({w}x{h}). 512x512 minimum recommended for best results.")
+
+    if img.mode not in ("RGB", "RGBA"):
+        img = img.convert("RGB")
+    elif img.mode == "RGBA":
+        img = img.convert("RGB")
+
+    output_path = str(order_dir / "input_prepared.png")
+    img.save(output_path, quality=95)
+
+    # --- Quality checks using OpenCV (non-blocking) ---
+    cv_img = cv2.imread(output_path)
+    if cv_img is not None:
+        gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+
+        # Face detection
+        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        face_cascade = cv2.CascadeClassifier(cascade_path)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+
+        if len(faces) == 0:
+            warnings.append("No face detected. The AI works best with a clearly visible face.")
+        elif len(faces) > 1:
+            warnings.append(f"{len(faces)} faces detected. For best results, use a photo with one person only.")
+
+        # Blur detection (Laplacian variance)
+        laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+        if laplacian_var < 50:
+            warnings.append(f"Photo appears blurry (sharpness: {laplacian_var:.0f}). A sharper photo will give better results.")
+
+    return {
+        "input_prepared": output_path,
+        "size": [w, h],
+        "warnings": warnings,
+        "cost": 0,
+    }
+
+
+def step_remove_background(input_prepared_path: str, order_dir: str) -> dict:
+    """Step 2: Remove background and replace with white.
+
+    Uses lucataco/remove-bg on Replicate (~$0.01).
+
+    Args:
+        input_prepared_path: Path to the prepared input photo.
+        order_dir: Path to the order output directory.
+
+    Returns:
+        dict with bg_removed path, cost, and elapsed time.
+    """
+    from remove_background import remove_background
+
+    output_path = str(Path(order_dir) / "bg_removed.jpg")
+    start = time.time()
+    result = remove_background(input_prepared_path, output_path)
+    elapsed = time.time() - start
+
+    return {
+        "bg_removed": output_path,
+        "cost": result["cost_estimate"],
+        "elapsed_seconds": round(elapsed, 1),
+        "size": result["size"],
+    }
+
+
+def step_generate_character(
+    bg_removed_path: str,
+    subject: str,
+    gender: str,
+    scene: str,
+    order_dir: str,
+    seed: Optional[int] = None,
+) -> dict:
+    """Step 3: Generate Pixar-style character using Kontext Max.
+
+    Transforms the white-background photo into a Pixar-like 3D animated
+    character, preserving identity. Cost: ~$0.08.
+
+    Args:
+        bg_removed_path: Path to the background-removed photo.
+        subject: Description of the person.
+        gender: 'boy', 'girl', or 'person'.
+        scene: Scene ID (e.g. 'village') for prompt selection.
+        order_dir: Path to the order output directory.
+        seed: Optional seed for reproducibility.
+
+    Returns:
+        dict with character path, cost, and elapsed time.
+    """
+    from backends.registry import get_backend
+    from scene_prompts import get_character_prompt
+
+    prompt = get_character_prompt(scene, subject, gender)
+    backend = get_backend("flux_kontext_max")
+
+    start = time.time()
+    result = backend.generate(
+        prompt=prompt,
+        image_path=bg_removed_path,
+        style_settings={},
+        seed=seed,
+    )
+    elapsed = time.time() - start
+
+    # Download and save
+    response = requests.get(result.image_url, timeout=120)
+    response.raise_for_status()
+    img = Image.open(BytesIO(response.content))
+    output_path = str(Path(order_dir) / "character.png")
+    img.save(output_path, quality=95)
+
+    return {
+        "character": output_path,
+        "cost": result.cost_estimate,
+        "elapsed_seconds": round(elapsed, 1),
+        "size": list(img.size),
+        "prompt": prompt,
+    }
+
+
+def step_costume(
+    character_path: str,
+    scene: str,
+    order_dir: str,
+    seed: Optional[int] = None,
+) -> dict:
+    """Step 4: Dress the character in a themed costume using Kontext Max.
+
+    Keeps face, hair, expression identical — only changes clothing. Cost: ~$0.08.
+
+    Args:
+        character_path: Path to the character image (white background).
+        scene: Scene ID for costume selection.
+        order_dir: Path to the order output directory.
+        seed: Optional seed for reproducibility.
+
+    Returns:
+        dict with costumed path, cost, and elapsed time.
+    """
+    from backends.registry import get_backend
+    from scene_prompts import get_scene
+
+    scene_config = get_scene(scene)
+    prompt = scene_config["costume_prompt"]
+    backend = get_backend("flux_kontext_max")
+
+    start = time.time()
+    result = backend.generate(
+        prompt=prompt,
+        image_path=character_path,
+        style_settings={},
+        seed=seed,
+    )
+    elapsed = time.time() - start
+
+    # Download and save
+    response = requests.get(result.image_url, timeout=120)
+    response.raise_for_status()
+    img = Image.open(BytesIO(response.content))
+    output_path = str(Path(order_dir) / "costumed.png")
+    img.save(output_path, quality=95)
+
+    return {
+        "costumed": output_path,
+        "cost": result.cost_estimate,
+        "elapsed_seconds": round(elapsed, 1),
+        "size": list(img.size),
+    }
+
+
+def step_composite(
+    costumed_path: str,
+    scene: str,
+    order_dir: str,
+    seed: Optional[int] = None,
+    progress_callback: Optional[Callable] = None,
+) -> dict:
+    """Step 5: Generate scene, composite character, pick best, upscale.
+
+    Generates a detailed scene via FLUX 2 Pro, then PIL-composites the
+    costumed character onto it. Runs through Kontext Max 3 times with
+    different seeds, quality-scores each, picks the best, and upscales
+    with Real-ESRGAN.
+
+    Sub-steps (4 total):
+    1. Scene generation (FLUX 2 Pro text-only, $0.08)
+    2. Compositing: 3 candidates with different seeds (Kontext Max x3, $0.24)
+    3. Scoring candidates and picking best
+    4. Upscaling best with Real-ESRGAN ($0.002)
+
+    Total cost: ~$0.32.
+
+    Args:
+        costumed_path: Path to the costumed character image.
+        scene: Scene ID for prompt selection.
+        order_dir: Path to the order output directory.
+        seed: Optional seed for reproducibility.
+        progress_callback: Optional callback(sub_step, label, sub_total) for progress updates.
+
+    Returns:
+        dict with scene path, final composite path, candidate scores, cost, and timing.
+    """
+    import random
+
+    from backends.registry import get_backend
+    from composite_pil import composite_character_onto_scene
+    from scene_prompts import get_scene
+    from upscale import upscale_image
+
+    scene_config = get_scene(scene)
+    order_dir = Path(order_dir)
+    total_cost = 0
+    total_elapsed = 0
+    sub_total = 4
+
+    def _progress(sub_step: int, label: str):
+        if progress_callback:
+            progress_callback(sub_step, label, sub_total)
+
+    # --- Sub-step 1: Generate empty scene via FLUX 2 Pro (text-only) ---
+    _progress(1, "Generating scene")
+    scene_path = str(order_dir / "scene.png")
+
+    import replicate as _replicate
+    start = time.time()
+    scene_inputs = {
+        "prompt": scene_config["scene_prompt"],
+        "resolution": "4 MP",
+        "aspect_ratio": "1:1",
+        "output_format": "png",
+        "output_quality": 100,
+        "safety_tolerance": 5,
+    }
+    if seed is not None:
+        scene_inputs["seed"] = seed
+    scene_output = _replicate.run("black-forest-labs/flux-2-pro", input=scene_inputs)
+    # Extract URL
+    scene_url = scene_output
+    if isinstance(scene_output, list):
+        scene_url = scene_output[0]
+    if hasattr(scene_url, "url"):
+        scene_url = str(getattr(scene_url, "url"))
+    scene_url = str(scene_url)
+    scene_elapsed = time.time() - start
+
+    response = requests.get(scene_url, timeout=120)
+    response.raise_for_status()
+    scene_img = Image.open(BytesIO(response.content))
+    scene_img.save(scene_path, quality=95)
+    scene_cost = 0.08
+    total_cost += scene_cost
+    total_elapsed += scene_elapsed
+    print(f"  Scene generated in {scene_elapsed:.1f}s ({scene_img.size[0]}x{scene_img.size[1]})")
+
+    # --- Sub-step 2: Generate 3 composite candidates with different seeds ---
+    _progress(2, "Compositing character into scene (3 candidates)")
+    backend = get_backend("flux_kontext_max")
+
+    pil_composite_path = str(order_dir / "_pil_composite.png")
+    composite_character_onto_scene(costumed_path, scene_path, pil_composite_path)
+
+    # Generate 3 seeds: use provided seed + offsets, or random
+    if seed is not None:
+        seeds = [seed, seed + 10, seed + 20]
+    else:
+        base = random.randint(1, 999999)
+        seeds = [base, base + 10, base + 20]
+
+    candidates = []
+    for i, s in enumerate(seeds):
+        candidate_path = str(order_dir / f"candidate_{i+1}.png")
+        start = time.time()
+        result = backend.generate(
+            prompt=scene_config["composite_E_prompt"],
+            image_path=pil_composite_path,
+            style_settings={},
+            aspect_ratio="1:1",
+            seed=s,
+        )
+        elapsed = time.time() - start
+
+        response = requests.get(result.image_url, timeout=120)
+        response.raise_for_status()
+        img = Image.open(BytesIO(response.content))
+        img.save(candidate_path, quality=95)
+
+        total_cost += result.cost_estimate
+        total_elapsed += elapsed
+        candidates.append({
+            "path": candidate_path,
+            "seed": s,
+            "size": list(img.size),
+        })
+        print(f"  Candidate {i+1}/3 generated (seed={s})")
+
+    # --- Sub-step 3: Score candidates and pick best ---
+    _progress(3, "Scoring candidates")
+    from quality.puzzle_scorer import score_puzzle_quality
+
+    best_score = -1
+    best_idx = 0
+    for i, candidate in enumerate(candidates):
+        score_result = score_puzzle_quality(candidate["path"])
+        candidate["quality_score"] = score_result.composite
+        candidate["quality_grade"] = score_result.grade.value
+        print(f"  Candidate {i+1}: score={score_result.composite:.1f} ({score_result.grade.value})")
+        if score_result.composite > best_score:
+            best_score = score_result.composite
+            best_idx = i
+
+    best = candidates[best_idx]
+    print(f"  Winner: candidate {best_idx+1} (score={best_score:.1f}, seed={best['seed']})")
+
+    # --- Sub-step 4: Upscale the winner ---
+    _progress(4, "Upscaling final image")
+    final_path = str(order_dir / "final.png")
+    upscale_result = upscale_image(
+        input_path=best["path"],
+        output_path=final_path,
+        scale=2,
+        anime=True,
+        face_enhance=False,
+    )
+    total_cost += upscale_result["cost_estimate"]
+    final_size = list(upscale_result.get("final_size", upscale_result.get("upscaled_size", (0, 0))))
+    print(f"  Upscaled to {final_size[0]}x{final_size[1]}")
+
+    # Clean up temp files
+    Path(pil_composite_path).unlink(missing_ok=True)
+
+    return {
+        "scene": scene_path,
+        "final": final_path,
+        "candidates": [c["path"] for c in candidates],
+        "scores": {
+            f"candidate_{i+1}": {
+                "score": c["quality_score"],
+                "grade": c["quality_grade"],
+                "seed": c["seed"],
+            }
+            for i, c in enumerate(candidates)
+        },
+        "best_candidate": best_idx + 1,
+        "best_score": best_score,
+        "cost": round(total_cost, 3),
+        "elapsed_seconds": round(total_elapsed, 1),
+        "scene_size": list(scene_img.size),
+        "final_size": final_size,
+    }
+
+
+def save_manifest(order_dir: str, job_metadata: dict) -> str:
+    """Save the final manifest.json with all step results and costs.
+
+    Args:
+        order_dir: Path to the order output directory.
+        job_metadata: Full job metadata dict (all steps).
+
+    Returns:
+        Path to the saved manifest.json.
+    """
+    manifest_path = Path(order_dir) / "manifest.json"
+    manifest = {
+        **job_metadata,
+        "completed_at": datetime.now().isoformat(),
+    }
+
+    # Calculate total cost
+    total_cost = 0
+    for step_data in manifest.get("steps", {}).values():
+        if isinstance(step_data, dict):
+            total_cost += step_data.get("cost", 0)
+    manifest["total_cost"] = round(total_cost, 3)
+
+    with manifest_path.open("w") as f:
+        json.dump(manifest, f, indent=2, default=str)
+
+    return str(manifest_path)

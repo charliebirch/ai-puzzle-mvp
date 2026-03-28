@@ -10,46 +10,11 @@
 <body>
     <main class="container">
         <h1>Preview: {{ job.id }}</h1>
-        <p>Style: {{ job.style }} | Backend: {{ job.backend }} | {{ job.puzzle_size }} pieces</p>
-
-        {# Puzzle Quality Grade Badge #}
-        {% if job.meta and job.meta.manifest and job.meta.manifest.steps and job.meta.manifest.steps.quality %}
-        {% set q = job.meta.manifest.steps.quality %}
-        <p>
-            {% if q.puzzle_composite is defined %}
-            Puzzle Quality: <strong>{{ "%.1f"|format(q.puzzle_composite) }}/100</strong>
-            {% set grade = q.puzzle_grade|default("") %}
-            {% if grade == "PASS" %}
-                <span class="badge badge-pass">PASS</span>
-            {% elif grade == "WARNING" %}
-                <span class="badge badge-warning">WARNING</span>
-            {% elif grade == "HARD_FAIL" %}
-                <span class="badge badge-fail">HARD FAIL</span>
-            {% elif grade == "FAIL" %}
-                <span class="badge badge-fail">FAIL</span>
-            {% endif %}
-            {% elif q.composite_score is defined %}
-            Quality: <strong>{{ "%.1f"|format(q.composite_score) }}/100</strong>
-            {% set passed = q.composite_score >= 70 %}
-            <span class="badge {{ 'badge-pass' if passed else 'badge-fail' }}">{{ "PASS" if passed else "FAIL" }}</span>
-            {% endif %}
-            {% if job.meta.manifest.total_cost_estimate is defined %}
+        <p>Style: {{ job.style }} | Backend: {{ job.backend }}
+            {% if job.meta and job.meta.manifest and job.meta.manifest.total_cost_estimate is defined %}
             | Cost: <strong>${{ "%.3f"|format(job.meta.manifest.total_cost_estimate) }}</strong>
             {% endif %}
         </p>
-
-        {# Hard fail reasons #}
-        {% if q.hard_fail_reasons %}
-        <article style="border-left: 4px solid #dc3545; padding-left: 1rem;">
-            <strong>Quality Rejected:</strong>
-            <ul>
-                {% for reason in q.hard_fail_reasons %}
-                <li>{{ reason }}</li>
-                {% endfor %}
-            </ul>
-        </article>
-        {% endif %}
-        {% endif %}
 
         <div class="grid">
             <article>
@@ -62,216 +27,30 @@
             </article>
         </div>
 
-        {# Heatmap + Puzzle Preview side by side #}
-        <div class="grid">
-            {% if job.meta and job.meta.manifest and job.meta.manifest.steps and job.meta.manifest.steps.heatmap and job.meta.manifest.steps.heatmap.heatmap_path %}
-            <article>
-                <h3>Puzzle Heatmap</h3>
-                <p><small>Green = good detail, Red = problem zones for puzzle assembly</small></p>
-                <img src="/image/{{ job.id }}/heatmap" alt="Quality heatmap" class="preview-img">
-                {% set hm = job.meta.manifest.steps.heatmap %}
-                <p>
-                    Min cell: {{ hm.min_cell }} |
-                    Mean: {{ hm.mean_cell }} |
-                    Max: {{ hm.max_cell }}
-                    {% if hm.problem_regions %}
-                    | <strong>{{ hm.problem_regions|length }} problem zone(s)</strong>
-                    {% endif %}
-                </p>
-            </article>
-            {% endif %}
-            {% if job.preview_path %}
-            <article>
-                <h3>Puzzle Preview</h3>
-                <img src="/image/{{ job.id }}/preview" alt="Puzzle preview with grid" class="preview-img">
-            </article>
-            {% endif %}
-        </div>
-
         {% if job.meta and job.meta.manifest and job.meta.manifest.steps %}
         {% set steps = job.meta.manifest.steps %}
-
-        {# Puzzle Quality Breakdown — 11 metrics (new system) #}
-        {% if steps.quality and steps.quality.per_metric %}
-        <article>
-            <h3>Puzzle Quality Breakdown</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Metric</th>
-                        <th>Raw</th>
-                        <th>Score</th>
-                        <th>Weight</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for name, m in steps.quality.per_metric.items() %}
-                    <tr>
-                        <td>{{ m.description if m.description else name|replace("_", " ")|title }}</td>
-                        <td>{{ m.raw }}</td>
-                        <td>{{ "%.1f"|format(m.score) }}/100</td>
-                        <td>{{ "%.0f"|format(m.weight * 100) }}%</td>
-                        <td>
-                            {% if m.hard_fail %}
-                            <span class="badge badge-fail">HARD FAIL</span>
-                            {% elif m.score >= 70 %}
-                            <span class="badge badge-pass">OK</span>
-                            {% elif m.score >= 40 %}
-                            <span class="badge badge-warning">WEAK</span>
-                            {% else %}
-                            <span class="badge badge-fail">BAD</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    <tr>
-                        <td><strong>Composite</strong></td>
-                        <td></td>
-                        <td><strong>{{ "%.1f"|format(steps.quality.puzzle_composite) }}/100</strong></td>
-                        <td><strong>100%</strong></td>
-                        <td>
-                            {% set grade = steps.quality.puzzle_grade|default("") %}
-                            {% if grade == "PASS" %}<span class="badge badge-pass">PASS</span>
-                            {% elif grade == "WARNING" %}<span class="badge badge-warning">WARNING</span>
-                            {% else %}<span class="badge badge-fail">{{ grade }}</span>{% endif %}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-
-            {# Face similarity — reported separately #}
-            {% if steps.quality.face_similarity_raw is defined and steps.quality.face_similarity_raw is not none %}
-            <p><small>Face similarity: {{ "%.4f"|format(steps.quality.face_similarity_raw) }}
-                ({{ steps.quality.face_confidence|default("n/a") }}) — informational only, not part of puzzle score</small></p>
-            {% endif %}
-        </article>
-
-        {# Actionable recommendations for failed metrics #}
-        {% set weak_metrics = [] %}
-        {% for name, m in steps.quality.per_metric.items() %}
-            {% if m.score < 50 %}
-                {% set _ = weak_metrics.append(name) %}
-            {% endif %}
-        {% endfor %}
-        {% if weak_metrics %}
-        <article>
-            <h3>Recommendations</h3>
-            <ul>
-                {% for name in weak_metrics %}
-                {% if name == "flat_region_pct" %}
-                <li><strong>Too many flat areas</strong> — Try a different scene or add "--max-attempts 3" for auto-retry with enhanced detail prompts</li>
-                {% elif name == "corner_detail_ratio" %}
-                <li><strong>Corners lack detail</strong> — The village scene tends to have more corner detail than space/underwater</li>
-                {% elif name == "subject_dominance" %}
-                <li><strong>Character too dominant</strong> — The cartoon pipeline tends to keep characters smaller. Try re-running with a different seed</li>
-                {% elif name == "dominant_color_pct" %}
-                <li><strong>One color dominates</strong> — Try the village scene for more color variety, or re-run with a different seed</li>
-                {% elif name == "edge_density" %}
-                <li><strong>Not enough detail</strong> — Re-run with max attempts to get a more detailed generation</li>
-                {% elif name == "grid_uniformity" %}
-                <li><strong>Detail unevenly distributed</strong> — The character may be too centered. Try a different seed</li>
-                {% elif name == "hue_diversity" %}
-                <li><strong>Limited color palette</strong> — The village scene typically has the most color variety</li>
-                {% else %}
-                <li><strong>{{ name|replace("_", " ")|title }}</strong> scored low — consider re-running with a different seed</li>
-                {% endif %}
-                {% endfor %}
-            </ul>
-        </article>
-        {% endif %}
-
-        {# Legacy quality breakdown — show if old-style data present #}
-        {% elif steps.quality and steps.quality.composite_score is defined and not steps.quality.skipped|default(false) %}
-        <article>
-            <h3>Quality Breakdown (Legacy)</h3>
-            <table>
-                <thead>
-                    <tr><th>Metric</th><th>Score</th><th>Weight</th></tr>
-                </thead>
-                <tbody>
-                    {% if steps.quality.weights %}
-                        {% for metric, weight in steps.quality.weights.items() %}
-                        <tr>
-                            <td>{{ metric|replace("_", " ")|title }}</td>
-                            <td>{{ "%.1f"|format(steps.quality[metric]|default(0)) }}/100</td>
-                            <td>{{ "%.0f"|format(weight * 100) }}%</td>
-                        </tr>
-                        {% endfor %}
-                    {% endif %}
-                    <tr>
-                        <td><strong>Composite</strong></td>
-                        <td><strong>{{ "%.1f"|format(steps.quality.composite_score) }}/100</strong></td>
-                        <td><strong>100%</strong></td>
-                    </tr>
-                </tbody>
-            </table>
-        </article>
-        {% endif %}
-
-        {# Retry attempts (if auto-retry was used) #}
-        {% if steps.ai_transform and steps.ai_transform.attempts %}
-        <article>
-            <h3>Generation Attempts</h3>
-            <table>
-                <thead>
-                    <tr><th>#</th><th>Score</th><th>Grade</th><th>Seed</th><th>Cost</th></tr>
-                </thead>
-                <tbody>
-                    {% for att in steps.ai_transform.attempts %}
-                    <tr>
-                        <td>{{ att.attempt }}</td>
-                        <td>{{ "%.1f"|format(att.puzzle_composite) }}/100</td>
-                        <td>
-                            {% if att.puzzle_grade == "PASS" %}<span class="badge badge-pass">PASS</span>
-                            {% elif att.puzzle_grade == "WARNING" %}<span class="badge badge-warning">WARNING</span>
-                            {% else %}<span class="badge badge-fail">{{ att.puzzle_grade }}</span>{% endif %}
-                        </td>
-                        <td>{{ att.seed|default("-") }}</td>
-                        <td>${{ "%.3f"|format(att.cost) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </article>
-        {% endif %}
 
         {# Cost & Timing #}
         <article>
             <h3>Cost & Timing</h3>
             <table>
                 <thead>
-                    <tr>
-                        <th>Step</th>
-                        <th>Time</th>
-                        <th>Cost</th>
-                    </tr>
+                    <tr><th>Step</th><th>Time</th><th>Cost</th></tr>
                 </thead>
                 <tbody>
-                    {% if steps.ai_transform %}
+                    {% if steps.generate %}
+                    <tr>
+                        <td>Character Generation</td>
+                        <td>{{ steps.generate.elapsed_seconds }}s</td>
+                        <td>${{ "%.3f"|format(steps.generate.cost_estimate) }}</td>
+                    </tr>
+                    {% endif %}
+                    {# Legacy support for old jobs with ai_transform key #}
+                    {% if steps.ai_transform and not steps.generate %}
                     <tr>
                         <td>AI Transform</td>
                         <td>{{ steps.ai_transform.elapsed_seconds }}s</td>
                         <td>${{ "%.3f"|format(steps.ai_transform.cost_estimate) }}</td>
-                    </tr>
-                    {% endif %}
-                    {% if steps.face_swap and steps.face_swap.status == 'ok' %}
-                    <tr>
-                        <td>Face Swap</td>
-                        <td>{{ steps.face_swap.elapsed_seconds }}s</td>
-                        <td>${{ "%.3f"|format(steps.face_swap.cost_estimate) }}</td>
-                    </tr>
-                    {% elif steps.face_swap and steps.face_swap.status == 'failed' %}
-                    <tr>
-                        <td>Face Swap</td>
-                        <td colspan="2"><span class="badge badge-fail">FAILED</span> {{ steps.face_swap.error }}</td>
-                    </tr>
-                    {% endif %}
-                    {% if steps.upscale and steps.upscale.cost_estimate is defined %}
-                    <tr>
-                        <td>Upscale</td>
-                        <td>-</td>
-                        <td>${{ "%.3f"|format(steps.upscale.cost_estimate) }}</td>
                     </tr>
                     {% endif %}
                     <tr>
@@ -286,7 +65,6 @@
 
         <div class="grid">
             <a href="/download/{{ job.id }}/preview" role="button" class="secondary">Download Preview</a>
-            {% if job.print_ready_path %}<a href="/download/{{ job.id }}/print_ready" role="button">Download Print-Ready File</a>{% endif %}
         </div>
 
         {# Feedback Section #}

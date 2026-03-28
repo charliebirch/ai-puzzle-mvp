@@ -1,0 +1,53 @@
+{% extends "wizard_base.html" %}
+{% block title %}Step 3: Character Generation — {{ job_id }}{% endblock %}
+
+{% block content %}
+<article>
+    <h2>Step 3: Character Generation</h2>
+    <p>Transforming the photo into a Pixar-style animated character. Cost: <strong>$0.08</strong></p>
+
+    {% if step_data and step_data.status == "complete" %}
+    <!-- Step complete — show before/after -->
+    <div class="grid">
+        <div>
+            <h4>Background Removed</h4>
+            <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
+        </div>
+        <div>
+            <h4>Pixar Character</h4>
+            <img src="/wizard/{{ job_id }}/image/character" alt="Generated character" class="preview-img">
+        </div>
+    </div>
+    <p>Character generated in {{ step_data.elapsed_seconds }}s (cost: ${{ "%.2f"|format(step_data.cost) }})</p>
+    <a href="/wizard/{{ job_id }}/step/4" role="button">Continue to Costume</a>
+
+    {% elif step_data and step_data.status == "error" %}
+    <article class="error-box">
+        <h3>Error</h3>
+        <p>{{ step_data.error }}</p>
+        <a href="/wizard/{{ job_id }}/step/3" role="button" class="secondary">Retry</a>
+    </article>
+
+    {% else %}
+    <div class="grid">
+        <div>
+            <h4>Background Removed</h4>
+            <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
+        </div>
+        <div>
+            <h4>Processing...</h4>
+            <div id="poll-container"
+                 hx-get="/wizard/{{ job_id }}/step/3/poll"
+                 hx-trigger="load, every 3s"
+                 hx-swap="innerHTML">
+                <article aria-busy="true">
+                    <p>Generating Pixar character... (15-30 seconds)</p>
+                    <progress></progress>
+                </article>
+            </div>
+        </div>
+    </div>
+    <div hx-post="/wizard/{{ job_id }}/step/3/run" hx-trigger="load" hx-swap="none"></div>
+    {% endif %}
+</article>
+{% endblock %}

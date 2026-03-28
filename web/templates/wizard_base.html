@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Puzzle Workshop{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+    <main class="container">
+        <h1>AI Puzzle Workshop</h1>
+
+        {% if current_step is defined and current_step %}
+        <!-- Step Progress Bar -->
+        <nav class="wizard-progress">
+            {% set steps = [
+                (1, "Upload"),
+                (2, "Background"),
+                (3, "Character"),
+                (4, "Costume"),
+                (5, "Scene & Compose")
+            ] %}
+            {% for num, label in steps %}
+            <div class="wizard-step {% if num < current_step %}done{% elif num == current_step %}active{% else %}pending{% endif %}">
+                <div class="step-circle">{{ num }}</div>
+                <div class="step-label">{{ label }}</div>
+            </div>
+            {% if not loop.last %}
+            <div class="step-line {% if num < current_step %}done{% endif %}"></div>
+            {% endif %}
+            {% endfor %}
+        </nav>
+
+        {% if total_cost is defined and total_cost > 0 %}
+        <p class="cost-tracker">Cost so far: <strong>${{ "%.2f"|format(total_cost) }}</strong></p>
+        {% endif %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+
+        <p style="margin-top: 2rem;">
+            <a href="/">Back to Dashboard</a>
+        </p>
+    </main>
+</body>
+</html>
