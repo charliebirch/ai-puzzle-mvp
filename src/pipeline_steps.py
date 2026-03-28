@@ -48,9 +48,7 @@ def step_validate_and_prepare(photo_path: str, order_dir: str) -> dict:
         ValueError: If file type is not supported or image is too small.
     """
     import subprocess
-
-    import cv2
-    import numpy as np
+    import platform
 
     order_dir = Path(order_dir)
     order_dir.mkdir(parents=True, exist_ok=True)
@@ -64,12 +62,17 @@ def step_validate_and_prepare(photo_path: str, order_dir: str) -> dict:
 
     # Convert HEIC to JPEG if needed (Pillow doesn't support HEIC natively)
     if ext in (".heic", ".heif"):
-        converted_path = str(Path(photo_path).with_suffix(".jpg"))
-        subprocess.run(
-            ["sips", "-s", "format", "jpeg", photo_path, "--out", converted_path],
-            check=True, capture_output=True,
-        )
-        photo_path = converted_path
+        if platform.system() == "Darwin":
+            converted_path = str(Path(photo_path).with_suffix(".jpg"))
+            subprocess.run(
+                ["sips", "-s", "format", "jpeg", photo_path, "--out", converted_path],
+                check=True, capture_output=True,
+            )
+            photo_path = converted_path
+        else:
+            raise ValueError(
+                "HEIC files are not supported on this server. Please upload a JPEG or PNG."
+            )
 
     img = ImageOps.exif_transpose(Image.open(photo_path))
     w, h = img.size
@@ -92,25 +95,30 @@ def step_validate_and_prepare(photo_path: str, order_dir: str) -> dict:
     output_path = str(order_dir / "input_prepared.png")
     img.save(output_path, quality=95)
 
-    # --- Quality checks using OpenCV (non-blocking) ---
-    cv_img = cv2.imread(output_path)
-    if cv_img is not None:
-        gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+    # --- Quality checks using OpenCV (non-blocking, skip if unavailable) ---
+    try:
+        import cv2
 
-        # Face detection
-        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        face_cascade = cv2.CascadeClassifier(cascade_path)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+        cv_img = cv2.imread(output_path)
+        if cv_img is not None:
+            gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
 
-        if len(faces) == 0:
-            warnings.append("No face detected. The AI works best with a clearly visible face.")
-        elif len(faces) > 1:
-            warnings.append(f"{len(faces)} faces detected. For best results, use a photo with one person only.")
+            # Face detection
+            cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+            face_cascade = cv2.CascadeClassifier(cascade_path)
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
 
-        # Blur detection (Laplacian variance)
-        laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-        if laplacian_var < 50:
-            warnings.append(f"Photo appears blurry (sharpness: {laplacian_var:.0f}). A sharper photo will give better results.")
+            if len(faces) == 0:
+                warnings.append("No face detected. The AI works best with a clearly visible face.")
+            elif len(faces) > 1:
+                warnings.append(f"{len(faces)} faces detected. For best results, use a photo with one person only.")
+
+            # Blur detection (Laplacian variance)
+            laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+            if laplacian_var < 50:
+                warnings.append(f"Photo appears blurry (sharpness: {laplacian_var:.0f}). A sharper photo will give better results.")
+    except ImportError:
+        pass  # OpenCV not available (e.g. Render lightweight mode)
 
     return {
         "input_prepared": output_path,
@@ -379,21 +387,33 @@ def step_composite(
 
     # --- Sub-step 3: Score candidates and pick best ---
     _progress(3, "Scoring candidates")
-    from quality.puzzle_scorer import score_puzzle_quality
 
     best_score = -1
     best_idx = 0
-    for i, candidate in enumerate(candidates):
-        score_result = score_puzzle_quality(candidate["path"])
-        candidate["quality_score"] = score_result.composite
-        candidate["quality_grade"] = score_result.grade.value
-        print(f"  Candidate {i+1}: score={score_result.composite:.1f} ({score_result.grade.value})")
-        if score_result.composite > best_score:
-            best_score = score_result.composite
-            best_idx = i
+    try:
+        from quality.puzzle_scorer import score_puzzle_quality
+
+        for i, candidate in enumerate(candidates):
+            score_result = score_puzzle_quality(candidate["path"])
+            candidate["quality_score"] = score_result.composite
+            candidate["quality_grade"] = score_result.grade.value
+            print(f"  Candidate {i+1}: score={score_result.composite:.1f} ({score_result.grade.value})")
+            if score_result.composite > best_score:
+                best_score = score_result.composite
+                best_idx = i
+    except ImportError:
+        # Quality scorer unavailable (needs OpenCV) — pick first candidate
+        print("  Quality scorer unavailable, picking candidate 1")
+        best_idx = 0
+        for candidate in candidates:
+            candidate["quality_score"] = None
+            candidate["quality_grade"] = "N/A"
 
     best = candidates[best_idx]
-    print(f"  Winner: candidate {best_idx+1} (score={best_score:.1f}, seed={best['seed']})")
+    if best_score >= 0:
+        print(f"  Winner: candidate {best_idx+1} (score={best_score:.1f}, seed={best['seed']})")
+    else:
+        print(f"  Using candidate {best_idx+1} (seed={best['seed']})")
 
     # --- Sub-step 4: Upscale the winner ---
     _progress(4, "Upscaling final image")

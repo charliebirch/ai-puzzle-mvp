@@ -253,12 +253,16 @@ async def wizard_start(
     result = step_validate_and_prepare(photo_path, str(order_dir))
 
     # Auto-detect skin tone from the prepared image (not the HEIC original)
+    # Gracefully skips if OpenCV is not available (e.g. Render lightweight mode)
     if not skin_tone:
-        from subject_builder import detect_skin_tone
-        detected = detect_skin_tone(result["input_prepared"])
-        if detected:
-            skin_tone = detected
-            print(f"  Auto-detected skin tone: {skin_tone}")
+        try:
+            from subject_builder import detect_skin_tone
+            detected = detect_skin_tone(result["input_prepared"])
+            if detected:
+                skin_tone = detected
+                print(f"  Auto-detected skin tone: {skin_tone}")
+        except ImportError:
+            pass
 
     # Build subject description
     final_subject = subject.strip()

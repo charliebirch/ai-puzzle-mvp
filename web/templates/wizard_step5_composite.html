@@ -30,13 +30,18 @@
             <tbody>
                 <tr>
                     <td>Quality Score</td>
-                    <td><strong>{{ "%.1f"|format(step_data.best_score) }}/100</strong>
+                    <td>
+                        {% if step_data.best_score is defined and step_data.best_score >= 0 %}
+                        <strong>{{ "%.1f"|format(step_data.best_score) }}/100</strong>
                         {% if step_data.best_score >= 80 %}
                         <span class="badge badge-pass">PASS</span>
                         {% elif step_data.best_score >= 65 %}
                         <span class="badge badge-warning">OK</span>
                         {% else %}
                         <span class="badge badge-fail">LOW</span>
+                        {% endif %}
+                        {% else %}
+                        <em>Not scored</em>
                         {% endif %}
                     </td>
                 </tr>
