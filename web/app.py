@@ -53,8 +53,8 @@ def _render(request: Request, template: str, context: dict = None) -> HTMLRespon
     """Render a template, compatible with both old and new Starlette API."""
     ctx = context or {}
     try:
-        # New Starlette (0.38+): request is a separate argument
-        return templates.TemplateResponse(request, name=template, context=ctx)
+        # New Starlette (1.0+): request is first positional arg
+        return templates.TemplateResponse(request, template, ctx)
     except TypeError:
         # Old Starlette: request goes inside context dict
         ctx["request"] = request
