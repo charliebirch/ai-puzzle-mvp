@@ -49,6 +49,18 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+def _render(request: Request, template: str, context: dict = None) -> HTMLResponse:
+    """Render a template, compatible with both old and new Starlette API."""
+    ctx = context or {}
+    try:
+        # New Starlette (0.38+): request is a separate argument
+        return templates.TemplateResponse(request, name=template, context=ctx)
+    except TypeError:
+        # Old Starlette: request goes inside context dict
+        ctx["request"] = request
+        return templates.TemplateResponse(template, ctx)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -191,10 +203,7 @@ async def index(request: Request):
     jobs = list_jobs(limit=20)
     for job in jobs:
         job["meta"] = _parse_metadata(job)
-    return templates.TemplateResponse(name="index.html", context={
-        "request": request,
-        "jobs": jobs,
-    })
+    return _render(request, "index.html", {"jobs": jobs})
 
 
 # ---------------------------------------------------------------------------
@@ -204,8 +213,7 @@ async def index(request: Request):
 @app.get("/wizard/new", response_class=HTMLResponse)
 async def wizard_new(request: Request):
     """Show the upload form (Step 1)."""
-    return templates.TemplateResponse(name="wizard_step1_upload.html", context={
-        "request": request,
+    return _render(request, "wizard_step1_upload.html", {
         "current_step": 1,
         "total_cost": 0,
     })
@@ -341,8 +349,7 @@ async def wizard_step(request: Request, job_id: str, step: int):
     job["meta"] = meta
     step_data = _get_step_data(meta, step)
 
-    return templates.TemplateResponse(name=STEP_TEMPLATES[step], context={
-        "request": request,
+    return _render(request, STEP_TEMPLATES[step], {
         "job_id": job_id,
         "job": job,
         "step_data": step_data if step_data else None,
@@ -384,8 +391,7 @@ async def wizard_step_poll(request: Request, job_id: str, step: int):
     step_data = _get_step_data(meta, step)
     status = step_data.get("status", "pending")
 
-    return templates.TemplateResponse(name="_wizard_poll.html", context={
-        "request": request,
+    return _render(request, "_wizard_poll.html", {
         "job_id": job_id,
         "step": step,
         "status": status,
@@ -508,10 +514,7 @@ async def status(request: Request, job_id: str):
     if not job:
         return RedirectResponse(url="/", status_code=303)
 
-    return templates.TemplateResponse(name="processing.html", context={
-        "request": request,
-        "job": job,
-    })
+    return _render(request, "processing.html", {"job": job})
 
 
 @app.get("/status/{job_id}/poll", response_class=HTMLResponse)
@@ -529,20 +532,11 @@ async def status_poll(request: Request, job_id: str):
     job["meta"] = _parse_metadata(job)
 
     if job["status"] == "completed":
-        return templates.TemplateResponse(name="_status_complete.html", context={
-            "request": request,
-            "job": job,
-        })
+        return _render(request, "_status_complete.html", {"job": job})
     elif job["status"] == "error":
-        return templates.TemplateResponse(name="_status_error.html", context={
-            "request": request,
-            "job": job,
-        })
+        return _render(request, "_status_error.html", {"job": job})
     else:
-        return templates.TemplateResponse(name="_status_processing.html", context={
-            "request": request,
-            "job": job,
-        })
+        return _render(request, "_status_processing.html", {"job": job})
 
 
 @app.get("/preview/{job_id}", response_class=HTMLResponse)
@@ -557,11 +551,7 @@ async def preview(request: Request, job_id: str):
     job["meta"] = _parse_metadata(job)
     feedback = get_feedback(job_id)
 
-    return templates.TemplateResponse(name="preview.html", context={
-        "request": request,
-        "job": job,
-        "feedback": feedback,
-    })
+    return _render(request, "preview.html", {"job": job, "feedback": feedback})
 
 
 @app.post("/feedback/{job_id}")
