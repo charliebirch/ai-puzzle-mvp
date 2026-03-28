@@ -191,7 +191,7 @@ async def index(request: Request):
     jobs = list_jobs(limit=20)
     for job in jobs:
         job["meta"] = _parse_metadata(job)
-    return templates.TemplateResponse("index.html", {
+    return templates.TemplateResponse("index.html", context={
         "request": request,
         "jobs": jobs,
     })
@@ -204,7 +204,7 @@ async def index(request: Request):
 @app.get("/wizard/new", response_class=HTMLResponse)
 async def wizard_new(request: Request):
     """Show the upload form (Step 1)."""
-    return templates.TemplateResponse("wizard_step1_upload.html", {
+    return templates.TemplateResponse("wizard_step1_upload.html", context={
         "request": request,
         "current_step": 1,
         "total_cost": 0,
@@ -341,7 +341,7 @@ async def wizard_step(request: Request, job_id: str, step: int):
     job["meta"] = meta
     step_data = _get_step_data(meta, step)
 
-    return templates.TemplateResponse(STEP_TEMPLATES[step], {
+    return templates.TemplateResponse(STEP_TEMPLATES[step], context={
         "request": request,
         "job_id": job_id,
         "job": job,
@@ -384,7 +384,7 @@ async def wizard_step_poll(request: Request, job_id: str, step: int):
     step_data = _get_step_data(meta, step)
     status = step_data.get("status", "pending")
 
-    return templates.TemplateResponse("_wizard_poll.html", {
+    return templates.TemplateResponse("_wizard_poll.html", context={
         "request": request,
         "job_id": job_id,
         "step": step,
@@ -508,7 +508,7 @@ async def status(request: Request, job_id: str):
     if not job:
         return RedirectResponse(url="/", status_code=303)
 
-    return templates.TemplateResponse("processing.html", {
+    return templates.TemplateResponse("processing.html", context={
         "request": request,
         "job": job,
     })
@@ -529,17 +529,17 @@ async def status_poll(request: Request, job_id: str):
     job["meta"] = _parse_metadata(job)
 
     if job["status"] == "completed":
-        return templates.TemplateResponse("_status_complete.html", {
+        return templates.TemplateResponse("_status_complete.html", context={
             "request": request,
             "job": job,
         })
     elif job["status"] == "error":
-        return templates.TemplateResponse("_status_error.html", {
+        return templates.TemplateResponse("_status_error.html", context={
             "request": request,
             "job": job,
         })
     else:
-        return templates.TemplateResponse("_status_processing.html", {
+        return templates.TemplateResponse("_status_processing.html", context={
             "request": request,
             "job": job,
         })
@@ -557,7 +557,7 @@ async def preview(request: Request, job_id: str):
     job["meta"] = _parse_metadata(job)
     feedback = get_feedback(job_id)
 
-    return templates.TemplateResponse("preview.html", {
+    return templates.TemplateResponse("preview.html", context={
         "request": request,
         "job": job,
         "feedback": feedback,
