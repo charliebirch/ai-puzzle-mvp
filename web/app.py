@@ -120,6 +120,7 @@ def _run_wizard_step(job_id: str, step: int):
             step_generate_character,
             step_costume,
             step_composite,
+            step_upscale_final,
             save_manifest,
         )
 
@@ -179,9 +180,8 @@ def _run_wizard_step(job_id: str, step: int):
         meta["total_cost"] = _total_cost(meta)
 
         if step == 5:
-            # Final step — save manifest and mark job completed
-            save_manifest(str(order_dir), meta)
-            update_job(job_id, status="completed", metadata=json.dumps(meta, default=str))
+            # Candidates generated — wait for user to pick before completing
+            update_job(job_id, status="pending", metadata=json.dumps(meta, default=str))
         else:
             update_job(job_id, status="pending", metadata=json.dumps(meta, default=str))
 
@@ -409,6 +409,72 @@ async def wizard_step_poll(request: Request, job_id: str, step: int):
 
 
 # ---------------------------------------------------------------------------
+# Wizard: User picks favourite candidate → upscale
+# ---------------------------------------------------------------------------
+
+def _run_upscale(job_id: str, candidate_num: int):
+    """Background task: upscale the user's chosen candidate."""
+    from pipeline_steps import step_upscale_final, save_manifest
+
+    job = get_job(job_id)
+    if not job:
+        return
+
+    meta = _parse_metadata(job)
+    order_dir = Path("orders") / job_id
+    step5 = meta.get("steps", {}).get("5", {})
+
+    try:
+        candidate_path = str(order_dir / f"candidate_{candidate_num}.png")
+        result = step_upscale_final(candidate_path, str(order_dir))
+
+        # Update step 5 with final result
+        step5["final"] = result["final"]
+        step5["final_size"] = result["final_size"]
+        step5["cost"] = round(step5.get("cost", 0) + result["cost"], 3)
+        step5["user_pick"] = candidate_num
+        step5["status"] = "complete"
+        meta["steps"]["5"] = step5
+        meta["total_cost"] = _total_cost(meta)
+
+        save_manifest(str(order_dir), meta)
+        update_job(job_id, status="completed", metadata=json.dumps(meta, default=str))
+
+    except Exception as e:
+        step5["status"] = "error"
+        step5["error"] = str(e)
+        meta["steps"]["5"] = step5
+        update_job(job_id, status="error", error=str(e), metadata=json.dumps(meta, default=str))
+
+
+@app.post("/wizard/{job_id}/pick")
+async def wizard_pick(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    pick: int = Form(...),
+):
+    """User picks their favourite candidate — trigger upscale."""
+    job = get_job(job_id)
+    if not job:
+        return HTMLResponse("Job not found", status_code=404)
+
+    if pick not in (1, 2, 3):
+        return HTMLResponse("Invalid selection", status_code=400)
+
+    # Mark as upscaling
+    meta = _parse_metadata(job)
+    step5 = meta.get("steps", {}).get("5", {})
+    step5["status"] = "upscaling"
+    step5["user_pick"] = pick
+    meta["steps"]["5"] = step5
+    update_job(job_id, status="processing", metadata=json.dumps(meta, default=str))
+
+    background_tasks.add_task(_run_upscale, job_id, pick)
+
+    return RedirectResponse(url=f"/wizard/{job_id}/step/5", status_code=303)
+
+
+# ---------------------------------------------------------------------------
 # Wizard: Download
 # ---------------------------------------------------------------------------
 
@@ -432,6 +498,9 @@ IMAGE_FILES = {
     "costumed": "costumed.png",
     "scene": "scene.png",
     "final": "final.png",
+    "candidate_1": "candidate_1.png",
+    "candidate_2": "candidate_2.png",
+    "candidate_3": "candidate_3.png",
 }
 
 

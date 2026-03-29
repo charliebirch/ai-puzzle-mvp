@@ -262,3 +262,57 @@ table td, table th {
     margin-bottom: 0.15rem;
 }
 
+/* ===== Candidate Picker Grid ===== */
+.candidate-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+@media (max-width: 768px) {
+    .candidate-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.candidate-option {
+    cursor: pointer;
+}
+
+.candidate-option input[type="radio"] {
+    display: none;
+}
+
+.candidate-card {
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    padding: 0.75rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    text-align: center;
+}
+
+.candidate-option input[type="radio"]:checked + .candidate-card {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+}
+
+.candidate-card:hover {
+    border-color: #0d6efd;
+}
+
+.candidate-card h4 {
+    margin: 0.5rem 0 0.25rem;
+    font-size: 0.95em;
+}
+
+.candidate-card p {
+    font-size: 0.85em;
+    color: #666;
+    margin: 0;
+}
+
+.candidate-card .preview-img {
+    width: 100%;
+}
+

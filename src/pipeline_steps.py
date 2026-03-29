@@ -274,13 +274,13 @@ def step_composite(
     different seeds, quality-scores each, picks the best, and upscales
     with Real-ESRGAN.
 
-    Sub-steps (4 total):
+    Sub-steps (3 total):
     1. Scene generation (FLUX 2 Pro text-only, $0.08)
     2. Compositing: 3 candidates with different seeds (Kontext Max x3, $0.24)
-    3. Scoring candidates and picking best
-    4. Upscaling best with Real-ESRGAN ($0.002)
+    3. Scoring candidates
 
-    Total cost: ~$0.32.
+    Upscaling happens separately after user picks their favourite.
+    Total cost: ~$0.32 (compositing) + $0.002 (upscale after pick).
 
     Args:
         costumed_path: Path to the costumed character image.
@@ -303,7 +303,7 @@ def step_composite(
     order_dir = Path(order_dir)
     total_cost = 0
     total_elapsed = 0
-    sub_total = 4
+    sub_total = 3
 
     def _progress(sub_step: int, label: str):
         if progress_callback:
@@ -385,11 +385,9 @@ def step_composite(
         })
         print(f"  Candidate {i+1}/3 generated (seed={s})")
 
-    # --- Sub-step 3: Score candidates and pick best ---
+    # --- Sub-step 3: Score candidates ---
     _progress(3, "Scoring candidates")
 
-    best_score = -1
-    best_idx = 0
     try:
         from quality.puzzle_scorer import score_puzzle_quality
 
@@ -398,43 +396,18 @@ def step_composite(
             candidate["quality_score"] = score_result.composite
             candidate["quality_grade"] = score_result.grade.value
             print(f"  Candidate {i+1}: score={score_result.composite:.1f} ({score_result.grade.value})")
-            if score_result.composite > best_score:
-                best_score = score_result.composite
-                best_idx = i
     except ImportError:
-        # Quality scorer unavailable (needs OpenCV) — pick first candidate
-        print("  Quality scorer unavailable, picking candidate 1")
-        best_idx = 0
+        print("  Quality scorer unavailable, skipping scoring")
         for candidate in candidates:
             candidate["quality_score"] = None
             candidate["quality_grade"] = "N/A"
 
-    best = candidates[best_idx]
-    if best_score >= 0:
-        print(f"  Winner: candidate {best_idx+1} (score={best_score:.1f}, seed={best['seed']})")
-    else:
-        print(f"  Using candidate {best_idx+1} (seed={best['seed']})")
-
-    # --- Sub-step 4: Upscale the winner ---
-    _progress(4, "Upscaling final image")
-    final_path = str(order_dir / "final.png")
-    upscale_result = upscale_image(
-        input_path=best["path"],
-        output_path=final_path,
-        scale=2,
-        anime=True,
-        face_enhance=False,
-    )
-    total_cost += upscale_result["cost_estimate"]
-    final_size = list(upscale_result.get("final_size", upscale_result.get("upscaled_size", (0, 0))))
-    print(f"  Upscaled to {final_size[0]}x{final_size[1]}")
-
     # Clean up temp files
     Path(pil_composite_path).unlink(missing_ok=True)
 
+    # Return candidates for user to pick — upscale happens after selection
     return {
         "scene": scene_path,
-        "final": final_path,
         "candidates": [c["path"] for c in candidates],
         "scores": {
             f"candidate_{i+1}": {
@@ -444,12 +417,42 @@ def step_composite(
             }
             for i, c in enumerate(candidates)
         },
-        "best_candidate": best_idx + 1,
-        "best_score": best_score,
         "cost": round(total_cost, 3),
         "elapsed_seconds": round(total_elapsed, 1),
         "scene_size": list(scene_img.size),
+    }
+
+
+def step_upscale_final(candidate_path: str, order_dir: str) -> dict:
+    """Upscale the user's chosen candidate to final resolution.
+
+    Called after the user picks their favourite from the 3 candidates.
+    Uses Real-ESRGAN 2x (anime model preferred, general fallback).
+
+    Args:
+        candidate_path: Path to the chosen candidate image.
+        order_dir: Path to the order output directory.
+
+    Returns:
+        dict with final path, cost, and size.
+    """
+    from upscale import upscale_image
+
+    final_path = str(Path(order_dir) / "final.png")
+    result = upscale_image(
+        input_path=candidate_path,
+        output_path=final_path,
+        scale=2,
+        anime=True,
+        face_enhance=False,
+    )
+    final_size = list(result.get("final_size", result.get("upscaled_size", (0, 0))))
+    print(f"  Upscaled to {final_size[0]}x{final_size[1]}")
+
+    return {
+        "final": final_path,
         "final_size": final_size,
+        "cost": result["cost_estimate"],
     }
 
 

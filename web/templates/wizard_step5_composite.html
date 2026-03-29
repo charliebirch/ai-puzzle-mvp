@@ -4,63 +4,23 @@
 {% block content %}
 <article>
     <h2>Step 5: Scene & Final Composite</h2>
-    <p>Generating a detailed scene, compositing your character into it (3 attempts), scoring each, and upscaling the best. Cost: <strong>~$0.32</strong></p>
+    <p>Generating a detailed scene and compositing your character into it 3 ways. Cost: <strong>~$0.32</strong></p>
 
-    {% if step_data and step_data.status == "complete" %}
-    <!-- Final result -->
+    {% if step_data and step_data.status == "complete" and step_data.final is defined %}
+    <!-- User has picked — show final upscaled result -->
     <h3>Your Puzzle Image</h3>
     <div style="max-width: 600px; margin: 0 auto 1.5rem;">
         <img src="/wizard/{{ job_id }}/image/final" alt="Final puzzle composite" class="preview-img">
     </div>
 
-    <div class="grid">
-        <article>
-            <h4>The Scene</h4>
-            <img src="/wizard/{{ job_id }}/image/scene" alt="Generated scene" class="preview-img">
-        </article>
-        <article>
-            <h4>Your Character</h4>
-            <img src="/wizard/{{ job_id }}/image/costumed" alt="Costumed character" class="preview-img">
-        </article>
-    </div>
-
     <article>
-        <h4>Generation Details</h4>
+        <h4>Details</h4>
         <table>
             <tbody>
-                <tr>
-                    <td>Quality Score</td>
-                    <td>
-                        {% if step_data.best_score is defined and step_data.best_score >= 0 %}
-                        <strong>{{ "%.1f"|format(step_data.best_score) }}/100</strong>
-                        {% if step_data.best_score >= 80 %}
-                        <span class="badge badge-pass">PASS</span>
-                        {% elif step_data.best_score >= 65 %}
-                        <span class="badge badge-warning">OK</span>
-                        {% else %}
-                        <span class="badge badge-fail">LOW</span>
-                        {% endif %}
-                        {% else %}
-                        <em>Not scored</em>
-                        {% endif %}
-                    </td>
-                </tr>
-                <tr>
-                    <td>Best of</td>
-                    <td>3 candidates (picked #{{ step_data.best_candidate }})</td>
-                </tr>
-                <tr>
-                    <td>Final Resolution</td>
-                    <td>{{ step_data.final_size[0] }}x{{ step_data.final_size[1] }}px (upscaled)</td>
-                </tr>
-                <tr>
-                    <td>Time</td>
-                    <td>{{ step_data.elapsed_seconds }}s</td>
-                </tr>
-                <tr>
-                    <td>Step Cost</td>
-                    <td>${{ "%.2f"|format(step_data.cost) }}</td>
-                </tr>
+                <tr><td>Selected</td><td>Candidate #{{ step_data.user_pick }}</td></tr>
+                <tr><td>Final Resolution</td><td>{{ step_data.final_size[0] }}x{{ step_data.final_size[1] }}px (upscaled)</td></tr>
+                <tr><td>Time</td><td>{{ step_data.elapsed_seconds }}s</td></tr>
+                <tr><td>Step Cost</td><td>${{ "%.2f"|format(step_data.cost) }}</td></tr>
             </tbody>
         </table>
     </article>
@@ -68,6 +28,52 @@
     <div class="grid">
         <a href="/wizard/{{ job_id }}/download/final" role="button">Download Puzzle Image</a>
         <a href="/wizard/new" role="button" class="secondary">Start New Puzzle</a>
+    </div>
+
+    {% elif step_data and step_data.status == "complete" and step_data.candidates is defined %}
+    <!-- Candidates ready — show all 3 for user to pick -->
+    <h3>The Scene</h3>
+    <div style="max-width: 400px; margin: 0 auto 1.5rem;">
+        <img src="/wizard/{{ job_id }}/image/scene" alt="Generated scene" class="preview-img">
+    </div>
+
+    <h3>Pick Your Favourite</h3>
+    <p>We generated 3 versions. Pick the one you like best — it will be upscaled to high resolution.</p>
+
+    <form action="/wizard/{{ job_id }}/pick" method="post">
+        <div class="candidate-grid">
+            {% for i in range(1, 4) %}
+            <label class="candidate-option">
+                <input type="radio" name="pick" value="{{ i }}" {% if i == 1 %}checked{% endif %} required>
+                <div class="candidate-card">
+                    <img src="/wizard/{{ job_id }}/image/candidate_{{ i }}" alt="Candidate {{ i }}" class="preview-img">
+                    <h4>Option {{ i }}</h4>
+                    {% if step_data.scores is defined and step_data.scores["candidate_" ~ i] is defined %}
+                    {% set s = step_data.scores["candidate_" ~ i] %}
+                    {% if s.score is not none %}
+                    <p>Quality: {{ "%.0f"|format(s.score) }}/100</p>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+
+        <button type="submit">Upscale & Finish</button>
+    </form>
+
+    <p>Compositing completed in {{ step_data.elapsed_seconds }}s (cost so far: ${{ "%.2f"|format(step_data.cost) }})</p>
+
+    {% elif step_data and step_data.status == "upscaling" %}
+    <!-- Upscaling the picked candidate -->
+    <div id="poll-container"
+         hx-get="/wizard/{{ job_id }}/step/5/poll"
+         hx-trigger="load, every 3s"
+         hx-swap="innerHTML">
+        <article aria-busy="true">
+            <p>Upscaling your selection... (10-15 seconds)</p>
+            <progress></progress>
+        </article>
     </div>
 
     {% elif step_data and step_data.status == "error" %}
@@ -78,7 +84,7 @@
     </article>
 
     {% else %}
-    <!-- Processing -->
+    <!-- Processing — generating candidates -->
     <div class="grid">
         <div>
             <h4>Your Costumed Character</h4>
@@ -92,7 +98,7 @@
                  hx-swap="innerHTML">
                 <article aria-busy="true">
                     <p>Generating scene and compositing... (1-2 minutes)</p>
-                    <progress value="0" max="4"></progress>
+                    <progress value="0" max="3"></progress>
                 </article>
             </div>
         </div>
