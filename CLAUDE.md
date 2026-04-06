@@ -15,17 +15,17 @@ The owner (Charlie) has some coding ability but relies on Claude Code as the pri
 - **Track decisions.** Record significant choices in memory.
 - **Document code.** Add docstrings and comments.
 
-## The Pipeline (5 Steps)
+## The Pipeline (5 Steps + Export)
 
 ```
-Photo → Remove BG ($0.01) → Character ($0.08) → Costume ($0.08) → Scene ($0.24) → Upscale ($0.002)
+Photo → Remove BG ($0.01) → Character ($0.08) → Costume ($0.08) → Scene ($0.24) → Upscale ($0.002) → Export (free)
 ```
 
 1. **Background Removal** — `lucataco/remove-bg`, composite onto white
 2. **Character Generation** — `flux-kontext-max`, Pixar transform preserving identity; face is cropped before sending
 3. **Costume** — `flux-kontext-max`, outfit picker (Adventurer or Wizard); prompts include `{subject}` for hair preservation
 4. **Scene Generation** — `flux-2-pro` text-only, detailed empty village scene with puzzle-optimised prompt
-5. **Compositing** — Method E only: PIL composite → 3× Kontext Max (different seeds) → quality-score → user picks → upscale
+5. **Compositing** — Method E only: PIL composite → 3× Kontext Max (different seeds) → quality-score → user picks → upscale → `step_export_for_print()` auto-runs
 
 **Cost:** ~$0.49 per full run
 
@@ -35,15 +35,8 @@ All learnings and rules: `docs/BEST_PRACTICES.md`
 ## Key Commands
 
 ```bash
-# Use venv python directly (source activate doesn't work in this shell)
-.venv/bin/python3 src/remove_background.py input/photo.jpg output/bg_removed.jpg
-
-# Run the simplified pipeline (character generation only — app rebuild pending)
-.venv/bin/python3 src/fulfill_order.py \
-  --photo input/amyg/amyg-beach.JPG \
-  --style village \
-  --subject "a young woman with dark hair" \
-  --order-id TEST-001
+# Web interface — full 5-step wizard
+.venv/bin/python3 -m uvicorn web.app:app --reload --port 8000
 
 # Run puzzle quality scorer on an image
 .venv/bin/python3 -c "
@@ -53,8 +46,12 @@ result = score_puzzle_quality('path/to/image.png', 500)
 print(f'{result.composite}/100 — {result.grade.value}')
 "
 
-# Web interface (currently simplified — rebuild pending)
-.venv/bin/python3 -m uvicorn web.app:app --reload --port 8000
+# Test print export manually
+.venv/bin/python3 -c "
+import sys; sys.path.insert(0, 'src')
+from pipeline_steps import step_export_for_print
+step_export_for_print('orders/JOB-ID/final.png', '252pc', 'orders/JOB-ID')
+"
 
 # Verify imports
 cd src && .venv/bin/python3 -c "from backends.registry import list_backends; print(list_backends())"
@@ -95,6 +92,9 @@ web/
 docs/
   BEST_PRACTICES.md      # All learnings from testing (prompts, what works/doesn't)
   PIPELINE.md            # Technical pipeline reference (models, prompts, costs)
+  PRODIGI.md             # Prodigi API reference, image specs, SKUs, shipping
+  PRODIGI_LAUNCH_CHECKLIST.md  # Step-by-step checklist before first live order
+  prodigi-jigsaws-gb-pricing.csv  # Pricing CSV from Prodigi (confirmed 2026-04-06)
   complete-ai-puzzle-guide-deep-research.md  # Puzzle design research
   consent-flow.md        # Legal: consent flow
   privacy-policy.md      # Legal: privacy policy
@@ -124,12 +124,16 @@ Key metrics: flat regions (<25%), corner detail, hue diversity (8+ bins), edge d
 
 Note: white_patch detector produces false positives on pure scene images (no character) — this is expected and harmless. It only matters on composited candidates.
 
-## Print Specs
+## Print Specs (Prodigi — launch sizes)
 
-| Size | Physical | Pixels (300 DPI) | Target Price |
-|------|----------|-------------------|-------------|
-| 500pc | 16" x 20" | 4800 x 6000 | $39.99 |
-| 1000pc | 20" x 28" | 6000 x 8400 | $49.99 |
+| SKU | Pieces | Physical | Export pixels | Tin lid | Unit cost | Rec. price | Margin |
+|-----|--------|----------|---------------|---------|-----------|------------|--------|
+| `JIGSAW-PUZZLE-252` | 252 | 375×285mm | 4429×3366px | 869×674px | £13 | £35 | £13.69 |
+| `JIGSAW-PUZZLE-110` | 110 | 250×200mm | 2953×2362px | 869×674px | £12 | £28 | £8.35 |
+
+Export function: `step_export_for_print(upscaled_path, size_code, order_dir)` — outputs `puzzle_surface.jpg` + `tin_lid.jpg`.
+Resize strategy: scale-to-fill then center-crop. 252pc is native 4:3 (negligible crop). 110pc is 5:4 (~6% side-crop).
+Full pricing: `docs/prodigi-jigsaws-gb-pricing.csv`
 
 ## Models Used
 
@@ -161,16 +165,21 @@ Note: white_patch detector produces false positives on pure scene images (no cha
 | Landscape orientation | All outputs 4:3 landscape | Prodigi puzzles are landscape; portrait doesn't fill puzzle well | 2026-04-06 |
 | Upscale to 4x | Real-ESRGAN 4x, general model | Print requires 300 DPI; 2x output (~2048px) too low for 252pc+ | 2026-04-06 |
 | Prodigi as fulfillment partner | UK fulfillment, 110pc + 252pc launch | No minimums, premium tins, strong UK domestic shipping (2-5 days) | 2026-04-06 |
+| Print export format | JPG not PNG, sRGB, quality=95, subsampling=0 | Prodigi prefers JPG; 4:4:4 chroma for max print fidelity | 2026-04-06 |
+| Puzzle size in wizard | 252pc default, 110pc option | 252pc is native 4:3 (no crop), better margin, hero product | 2026-04-06 |
+| Regenerate buttons | Steps 3 + 4 have "Regenerate" that clears downstream + new seed | Needed before volume; no way to retry without starting over | 2026-04-06 |
 
 ## Current Status
 
 - **Pipeline proven** — 5-step wizard working end-to-end, scores 93–97/100
 - **Wardrobe picker** — Step 4 has interactive outfit choice UI (Adventurer + Wizard)
+- **Regenerate buttons** — Steps 3 + 4 have "Regenerate" (clears downstream, new random seed)
 - **Scene prompt v3** — landscape 4:3, wide panoramic, character left-of-centre composition
 - **Hair preservation** — costume prompts now inject `{subject}` via `get_costume_prompt()`
-- **Prodigi integration** — fulfillment partner selected; see `docs/PRODIGI.md` + `docs/PRODIGI_LAUNCH_CHECKLIST.md`
-- **Upscale 4x** — now outputs print-ready resolution for 110pc + 252pc puzzles
-- **Next:** Order sample puzzle via Prodigi dashboard, add export step for print-ready files
+- **Prodigi ready** — `step_export_for_print()` outputs print-ready JPGs automatically after upscale; see `docs/PRODIGI.md`
+- **Print-ready downloads** — Step 5 completion shows puzzle surface + tin lid, two download buttons, fulfillment instructions
+- **Deployed** — live on Render (`main` branch auto-deploys)
+- **Next:** Order a physical sample via Prodigi dashboard to verify print quality
 
 ## Known Issues
 
@@ -178,3 +187,5 @@ Note: white_patch detector produces false positives on pure scene images (no cha
 - FLUX 2 Pro safety filter occasionally triggers on benign content (retry with different seed)
 - Kontext Max outputs capped at ~1024px — hard limit; `laplacian_variance` stays low until upscaled
 - white_patch scorer produces false positives on pure scene images — expected, only meaningful on composites
+- `LIGHTWEIGHT_MODE=1` set in `render.yaml` but **not checked anywhere in code** — leftover env var, does nothing
+- Render free tier has ephemeral filesystem — `orders/` wiped on restart; run pipeline locally for real orders
