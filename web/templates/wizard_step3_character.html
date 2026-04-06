@@ -21,7 +21,12 @@
         </div>
     </div>
     <p>Character generated in {{ step_data.elapsed_seconds }}s &mdash; cost: <strong>${{ "%.2f"|format(step_data.cost) }}</strong></p>
-    <a href="/wizard/{{ job_id }}/step/4" role="button">Continue to Costume &rarr;</a>
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
+        <a href="/wizard/{{ job_id }}/step/4" role="button">Continue to Costume &rarr;</a>
+        <form action="/wizard/{{ job_id }}/step/3/regenerate" method="post" style="margin:0;">
+            <button type="submit" class="secondary outline">Regenerate character</button>
+        </form>
+    </div>
 
     {% elif step_data and step_data.status == "error" %}
     <article class="error-box">

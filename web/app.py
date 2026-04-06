@@ -15,6 +15,7 @@ import json
 import os
 import shutil
 import sys
+import random
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -439,6 +440,31 @@ async def wizard_set_outfit(
     update_job(job_id, metadata=json.dumps(meta, default=str))
 
     return RedirectResponse(url=f"/wizard/{job_id}/step/4", status_code=303)
+
+
+@app.post("/wizard/{job_id}/step/{step}/regenerate")
+async def wizard_step_regenerate(job_id: str, step: int):
+    """Re-run step 3 or 4 with a fresh seed, clearing downstream results."""
+    if step not in (3, 4):
+        return HTMLResponse("Regenerate only supported for steps 3 and 4", status_code=400)
+
+    job = get_job(job_id)
+    if not job:
+        return HTMLResponse("Job not found", status_code=404)
+
+    meta = _parse_metadata(job)
+    steps = meta.setdefault("steps", {})
+
+    # Clear this step and all downstream steps
+    for s in range(step, 6):
+        steps.pop(str(s), None)
+
+    # Use a new random seed so the re-run produces a different result
+    meta["seed"] = random.randint(1, 999999)
+    meta["current_step"] = step
+
+    update_job(job_id, metadata=json.dumps(meta, default=str))
+    return RedirectResponse(url=f"/wizard/{job_id}/step/{step}", status_code=303)
 
 
 @app.post("/wizard/{job_id}/step/{step}/run")

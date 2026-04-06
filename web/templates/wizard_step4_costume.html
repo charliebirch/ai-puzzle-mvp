@@ -21,6 +21,9 @@
 
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
         <a href="/wizard/{{ job_id }}/step/5" role="button">Continue to Scene &amp; Compositing →</a>
+        <form action="/wizard/{{ job_id }}/step/4/regenerate" method="post" style="margin:0;">
+            <button type="submit" class="secondary outline">Regenerate costume</button>
+        </form>
         <a href="/wizard/{{ job_id }}/outfit-change" role="button" class="secondary outline">Change Outfit</a>
     </div>
 
