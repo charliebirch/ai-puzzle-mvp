@@ -232,6 +232,16 @@ async def api_detect_attributes(photo: UploadFile = File(...)):
         tmp_path = tmp.name
 
     try:
+        # Resize to max 1024px before sending to Claude API — full-res phone
+        # images exceed the API's processable size limit.
+        from PIL import Image as PILImage
+        img = PILImage.open(tmp_path)
+        if img.mode not in ("RGB",):
+            img = img.convert("RGB")
+        if max(img.size) > 1024:
+            img.thumbnail((1024, 1024), PILImage.LANCZOS)
+            img.save(tmp_path, format="JPEG", quality=90)
+
         from detect_attributes import detect_attributes
         attrs = detect_attributes(tmp_path)
     finally:

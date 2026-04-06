@@ -95,6 +95,7 @@ docs/
   PRODIGI.md             # Prodigi API reference, image specs, SKUs, shipping
   PRODIGI_LAUNCH_CHECKLIST.md  # Step-by-step checklist before first live order
   prodigi-jigsaws-gb-pricing.csv  # Pricing CSV from Prodigi (confirmed 2026-04-06)
+  RENDER.md              # Render hosting reference: tiers, persistent disk, render.yaml, upgrade guide
   complete-ai-puzzle-guide-deep-research.md  # Puzzle design research
   consent-flow.md        # Legal: consent flow
   privacy-policy.md      # Legal: privacy policy

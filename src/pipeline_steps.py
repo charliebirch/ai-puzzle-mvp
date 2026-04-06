@@ -99,6 +99,12 @@ def step_validate_and_prepare(photo_path: str, order_dir: str) -> dict:
     elif img.mode == "RGBA":
         img = img.convert("RGB")
 
+    # Resize to max 1500px on long edge — Replicate/Claude don't need more,
+    # and full-res phone images (3000x4000+) cause OOM on Render free tier.
+    MAX_DIM = 1500
+    if max(img.size) > MAX_DIM:
+        img.thumbnail((MAX_DIM, MAX_DIM), Image.LANCZOS)
+
     output_path = str(order_dir / "input_prepared.png")
     img.save(output_path, quality=95)
 
