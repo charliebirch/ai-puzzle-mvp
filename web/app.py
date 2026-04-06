@@ -21,7 +21,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -204,6 +204,37 @@ async def index(request: Request):
     for job in jobs:
         job["meta"] = _parse_metadata(job)
     return _render(request, "index.html", {"jobs": jobs})
+
+
+# ---------------------------------------------------------------------------
+# API: Attribute detection
+# ---------------------------------------------------------------------------
+
+@app.post("/api/detect-attributes")
+async def api_detect_attributes(photo: UploadFile = File(...)):
+    """Detect person attributes from an uploaded photo using Claude vision.
+
+    Called client-side when the user selects a photo, before form submission.
+    Returns detected attributes as JSON so the frontend can pre-populate dropdowns.
+    Fails gracefully — returns {} if detection unavailable (no API key, etc).
+    """
+    import tempfile
+
+    ext = Path(photo.filename).suffix.lower() if photo.filename else ".jpg"
+    if ext not in {".jpg", ".jpeg", ".png", ".heic", ".heif"}:
+        ext = ".jpg"
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        shutil.copyfileobj(photo.file, tmp)
+        tmp_path = tmp.name
+
+    try:
+        from detect_attributes import detect_attributes
+        attrs = detect_attributes(tmp_path)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    return JSONResponse(attrs)
 
 
 # ---------------------------------------------------------------------------
@@ -494,6 +525,7 @@ async def wizard_download_final(job_id: str):
 IMAGE_FILES = {
     "input_prepared": "input_prepared.png",
     "bg_removed": "bg_removed.jpg",
+    "character_input": "character_input.png",
     "character": "character.png",
     "costumed": "costumed.png",
     "scene": "scene.png",

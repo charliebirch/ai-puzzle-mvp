@@ -19,19 +19,25 @@ SCENE_CONFIGS = {
 
         # Step 2: Character generation (Kontext Max)
         "character_prompt": (
-            "Transform this photo of {subject} into a Pixar-like 3D animated character. "
-            "This person is {subject} — preserve their exact skin tone, hair texture, "
-            "hair color, hairstyle, and face shape. Gentle Pixar-style cartoon features — "
-            "keep natural facial proportions and eye size. {gender_hint}. A warm, natural "
-            "smile. Soft cartoon shading, smooth skin. Do not enlarge the eyes. Do not "
-            "change the person's ethnicity, skin tone, or hair. Keep the same pose and "
-            "framing. Plain white background.\n\n"
-            "Composition:\n"
-            "- Bust portrait, shoulders up\n"
-            "- Slight 3/4 angle, centred\n"
+            "Transform this face reference into a full Pixar-like 3D animated character standing "
+            "in a fun hero pose. Use this image ONLY as a face and identity reference — do NOT "
+            "copy the pose, hands, arms, or body position from the source.\n\n"
+            "IDENTITY (preserve exactly):\n"
+            "- Skin tone, ethnicity, hair colour, hair texture, hairstyle, face shape\n"
+            "- Natural facial proportions — do not enlarge eyes, do not alter jaw or nose\n"
+            "- {gender_hint}\n"
+            "- This person is {subject}\n\n"
+            "POSE (always use this, regardless of source image):\n"
+            "- Full standing figure, roughly waist-up visible\n"
+            "- Confident, fun hero stance: feet shoulder-width apart, one fist raised triumphantly "
+            "or hands on hips, chest forward, slight lean into the viewer\n"
+            "- Face directly toward the viewer — face must be fully visible and unobscured\n"
+            "- Warm, natural smile\n\n"
+            "STYLE:\n"
+            "- Pixar 3D animated style, soft cartoon shading, smooth skin\n"
+            "- Simple casual clothing, no logos\n"
             "- Plain white background\n"
-            "- Clean silhouette edges suitable for compositing\n"
-            "- Simple casual clothing without logos or text emphasis"
+            "- Clean silhouette edges suitable for compositing"
         ),
 
         # Gender hints for character prompt

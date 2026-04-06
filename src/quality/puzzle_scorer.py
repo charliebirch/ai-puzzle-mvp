@@ -1,4 +1,4 @@
-"""Unified puzzle quality scoring — 11 metrics that predict physical puzzle solvability.
+"""Unified puzzle quality scoring — 12 metrics that predict physical puzzle solvability.
 
 Implements metrics from the deep research document (docs/complete-ai-puzzle-guide-deep-research.md).
 All computed on image resized to 1500px long edge. Only uses numpy + opencv (no torch, no InsightFace).
@@ -47,7 +47,8 @@ class PuzzleScore:
     transformation_score: Optional[float] = None  # 0-100, None if no source provided
 
 
-# Metric weights — must sum to 1.0
+# Metric weights — quality metrics sum to 1.0.
+# white_patch is weight 0 — pure hard fail detector, no composite score contribution.
 METRIC_WEIGHTS = {
     "flat_region_pct": 0.20,
     "color_entropy": 0.12,
@@ -60,6 +61,7 @@ METRIC_WEIGHTS = {
     "laplacian_variance": 0.06,
     "gabor_texture_energy": 0.04,
     "subject_dominance": 0.04,
+    "white_patch": 0.00,  # hard fail only — failed composite detector
 }
 
 # Analysis resolution — all images resized to this long edge before scoring
@@ -513,6 +515,62 @@ def _score_subject_dominance(img_bgr: np.ndarray) -> MetricResult:
     )
 
 
+def _score_white_patch(img_bgr: np.ndarray) -> MetricResult:
+    """Metric 12: Detect large near-pure-white patches — failed composite indicator.
+
+    When the PIL composite background isn't blended away by Kontext Max, a clean
+    white area remains around the character's feet/edges. This is the tell-tale
+    sign of a seed where the model did almost nothing.
+
+    Finds the largest connected region of near-pure white (all channels > 248)
+    after a small erosion to remove single-pixel noise. Hard fails if that region
+    covers >= 2% of the total image.
+
+    Note: This threshold assumes non-snow scenes. A white building wall or bright
+    sky won't typically produce a single connected blob of this size at pure white.
+    """
+    h, w = img_bgr.shape[:2]
+    total_pixels = h * w
+
+    # Near-pure white: all three channels > 248
+    white_mask = np.all(img_bgr > 248, axis=2).astype(np.uint8)
+
+    # Erode slightly to remove isolated noise pixels
+    kernel = np.ones((3, 3), np.uint8)
+    white_mask = cv2.erode(white_mask, kernel, iterations=1)
+
+    # Find connected components
+    num_labels, _, stats, _ = cv2.connectedComponentsWithStats(white_mask, connectivity=8)
+
+    if num_labels <= 1:
+        largest_pct = 0.0
+    else:
+        # stats rows: [label0=background, label1, ...]; column 4 = area
+        areas = stats[1:, cv2.CC_STAT_AREA]
+        largest_pct = float(np.max(areas)) / total_pixels * 100
+
+    # Score: <0.5% = fine, >=2% = hard fail
+    if largest_pct < 0.5:
+        score = 100.0
+    elif largest_pct < 2.0:
+        score = 100 - (largest_pct - 0.5) / 1.5 * 100  # 100 → 0
+    else:
+        score = 0.0
+
+    hard_fail = largest_pct >= 2.0
+    return MetricResult(
+        name="white_patch",
+        raw_value=round(largest_pct, 2),
+        normalized_score=round(max(0, min(100, score)), 1),
+        weight=METRIC_WEIGHTS["white_patch"],
+        hard_fail=hard_fail,
+        hard_fail_reason=(
+            f"White patch covers {largest_pct:.1f}% of image — composite not blended (failed seed)"
+            if hard_fail else ""
+        ),
+    )
+
+
 def score_transformation(source_path: str, generated_path: str) -> float:
     """Score how much the generated image differs from the source photo.
 
@@ -603,7 +661,7 @@ def score_puzzle_quality(
     # Piece window size scales with puzzle piece count
     piece_window = 48 if puzzle_pieces >= 1000 else 64
 
-    # Run all 11 metrics
+    # Run all 12 metrics
     metrics = [
         _score_flat_region_pct(gray, piece_window),
         _score_color_entropy(img_bgr),
@@ -616,6 +674,7 @@ def score_puzzle_quality(
         _score_laplacian_variance(gray),
         _score_gabor_texture_energy(gray),
         _score_subject_dominance(img_bgr),
+        _score_white_patch(img_bgr),
     ]
 
     # Build per_metric dict and collect hard fails
@@ -672,6 +731,7 @@ METRIC_DESCRIPTIONS = {
     "laplacian_variance": "Sharpness — overall image clarity and detail",
     "gabor_texture_energy": "Texture richness — variety of surface patterns",
     "subject_dominance": "Subject size — whether character leaves room for scene",
+    "white_patch": "White patch — detects unblended composite background (failed seed)",
 }
 
 

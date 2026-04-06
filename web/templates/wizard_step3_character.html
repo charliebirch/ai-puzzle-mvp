@@ -7,19 +7,27 @@
     <p>Transforming the photo into a Pixar-style animated character. Cost: <strong>$0.08</strong></p>
 
     {% if step_data and step_data.status == "complete" %}
-    <!-- Step complete — show before/after -->
+    <!-- Step complete — show all three: bg removed, face crop reference, character output -->
     <div class="grid">
         <div>
             <h4>Background Removed</h4>
             <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
+            <small>Full cutout (original pose)</small>
+        </div>
+        <div>
+            <h4>Face Reference Sent to AI <small style="font-weight:normal; color: var(--pico-muted-color)">debug</small></h4>
+            <img src="/wizard/{{ job_id }}/image/character_input" alt="Cropped face reference"
+                 class="preview-img" onerror="this.parentElement.style.display='none'">
+            <small>Cropped to face + chest only — pose removed</small>
         </div>
         <div>
             <h4>Pixar Character</h4>
             <img src="/wizard/{{ job_id }}/image/character" alt="Generated character" class="preview-img">
+            <small>Generated with hero pose</small>
         </div>
     </div>
-    <p>Character generated in {{ step_data.elapsed_seconds }}s (cost: ${{ "%.2f"|format(step_data.cost) }})</p>
-    <a href="/wizard/{{ job_id }}/step/4" role="button">Continue to Costume</a>
+    <p>Character generated in {{ step_data.elapsed_seconds }}s &mdash; cost: <strong>${{ "%.2f"|format(step_data.cost) }}</strong></p>
+    <a href="/wizard/{{ job_id }}/step/4" role="button">Continue to Costume &rarr;</a>
 
     {% elif step_data and step_data.status == "error" %}
     <article class="error-box">
@@ -35,13 +43,13 @@
             <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
         </div>
         <div>
-            <h4>Processing...</h4>
+            <h4>Generating character...</h4>
             <div id="poll-container"
                  hx-get="/wizard/{{ job_id }}/step/3/poll"
                  hx-trigger="load, every 3s"
                  hx-swap="innerHTML">
                 <article aria-busy="true">
-                    <p>Generating Pixar character... (15-30 seconds)</p>
+                    <p>Generating Pixar character... (15–30 seconds)</p>
                     <progress></progress>
                 </article>
             </div>

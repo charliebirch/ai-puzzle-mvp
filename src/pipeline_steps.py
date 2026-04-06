@@ -155,6 +155,84 @@ def step_remove_background(input_prepared_path: str, order_dir: str) -> dict:
     }
 
 
+def _crop_to_face(bg_removed_path: str, output_path: str) -> str:
+    """Crop a white-background cutout image to face + upper chest only.
+
+    Finds the bounding box of non-white pixels (the person cutout), then takes
+    the top portion of that box (roughly face + shoulders). This prevents Kontext
+    Max from seeing hand positions, body poses, or anything below the chest in
+    the source photo.
+
+    Falls back to the original image if cropping fails (e.g. image is entirely
+    white or very small).
+
+    Args:
+        bg_removed_path: Path to the white-background cutout (bg_removed.jpg).
+        output_path: Where to save the cropped image (character_input.png).
+
+    Returns:
+        Path to the cropped image (output_path), or bg_removed_path on failure.
+    """
+    try:
+        img = Image.open(bg_removed_path).convert("RGBA")
+        w, h = img.size
+
+        # Build a mask of non-white pixels (person silhouette)
+        # White = R>240, G>240, B>240
+        r, g, b, a = img.split()
+        import array as _array
+        pixels_r = list(r.getdata())
+        pixels_g = list(g.getdata())
+        pixels_b = list(b.getdata())
+
+        # Find bounding box of non-white pixels
+        min_x, min_y, max_x, max_y = w, h, 0, 0
+        for idx, (pr, pg, pb) in enumerate(zip(pixels_r, pixels_g, pixels_b)):
+            if pr < 240 or pg < 240 or pb < 240:
+                px = idx % w
+                py = idx // w
+                min_x = min(min_x, px)
+                max_x = max(max_x, px)
+                min_y = min(min_y, py)
+                max_y = max(max_y, py)
+
+        if max_x <= min_x or max_y <= min_y:
+            # No non-white pixels found — fall back
+            return bg_removed_path
+
+        person_h = max_y - min_y
+        person_w = max_x - min_x
+
+        # Take the top 45% of the person's height (face + upper chest)
+        # with a horizontal padding of 20% of person width on each side
+        crop_h = int(person_h * 0.45)
+        pad_x  = int(person_w * 0.20)
+
+        left   = max(0, min_x - pad_x)
+        top    = max(0, min_y - int(person_h * 0.05))   # small top margin
+        right  = min(w, max_x + pad_x)
+        bottom = min(h, min_y + crop_h)
+
+        if (right - left) < 64 or (bottom - top) < 64:
+            return bg_removed_path
+
+        cropped = img.crop((left, top, right, bottom)).convert("RGB")
+
+        # Composite onto white background
+        white = Image.new("RGB", cropped.size, (255, 255, 255))
+        if cropped.mode == "RGBA":
+            white.paste(cropped, mask=cropped.split()[3])
+        else:
+            white.paste(cropped)
+
+        white.save(output_path)
+        return output_path
+
+    except Exception as e:
+        print(f"  _crop_to_face: failed ({e}), using full bg_removed image")
+        return bg_removed_path
+
+
 def step_generate_character(
     bg_removed_path: str,
     subject: str,
@@ -182,13 +260,20 @@ def step_generate_character(
     from backends.registry import get_backend
     from scene_prompts import get_character_prompt
 
+    # Crop bg_removed down to face + upper chest so the model only sees
+    # identity reference, not the source pose or hand positions.
+    character_input_path = str(Path(order_dir) / "character_input.png")
+    actual_input = _crop_to_face(bg_removed_path, character_input_path)
+    used_crop = actual_input == character_input_path
+    print(f"  Character input: {'cropped face' if used_crop else 'full bg_removed (crop failed)'}")
+
     prompt = get_character_prompt(scene, subject, gender)
     backend = get_backend("flux_kontext_max")
 
     start = time.time()
     result = backend.generate(
         prompt=prompt,
-        image_path=bg_removed_path,
+        image_path=actual_input,
         style_settings={},
         seed=seed,
     )
@@ -203,6 +288,7 @@ def step_generate_character(
 
     return {
         "character": output_path,
+        "character_input": character_input_path if used_crop else None,
         "cost": result.cost_estimate,
         "elapsed_seconds": round(elapsed, 1),
         "size": list(img.size),

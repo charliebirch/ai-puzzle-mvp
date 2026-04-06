@@ -7,102 +7,153 @@
     <p>Upload a clear photo of the person you'd like to turn into a puzzle character.</p>
 
     <form action="/wizard/start" method="post" enctype="multipart/form-data">
-        <label for="photo">Customer Photo</label>
-        <input type="file" id="photo" name="photo" accept=".jpg,.jpeg,.png,.heic,.heif" required>
 
-        <aside class="upload-tips">
-            <strong>For best results:</strong>
-            <ul>
-                <li>Clear, well-lit photo with the face clearly visible</li>
-                <li>Front-facing or slight angle — avoid profiles</li>
-                <li>One person per photo (no group shots)</li>
-                <li>Avoid sunglasses or anything covering the face</li>
-                <li>Background doesn't matter — it gets removed automatically</li>
-            </ul>
-        </aside>
+        <!-- Upload + preview two-column layout -->
+        <div class="upload-row">
+            <div class="upload-left">
+                <label for="photo">Customer Photo</label>
+                <input type="file" id="photo" name="photo" accept=".jpg,.jpeg,.png,.heic,.heif" required>
+                <aside class="upload-tips">
+                    <strong>For best results:</strong>
+                    <ul>
+                        <li>Clear, well-lit photo with the face clearly visible</li>
+                        <li>Front-facing or slight angle — avoid profiles</li>
+                        <li>One person per photo (no group shots)</li>
+                        <li>Avoid sunglasses or anything covering the face</li>
+                        <li>Background doesn't matter — it gets removed automatically</li>
+                    </ul>
+                </aside>
+            </div>
 
-        <label><strong>Describe the Person</strong></label>
-        <div class="grid">
-            <div>
-                <label for="age_range">Age Range</label>
-                <select id="age_range" name="age_range">
-                    <option value="toddler">Toddler (1-3)</option>
-                    <option value="child" selected>Child (4-12)</option>
-                    <option value="teen">Teen (13-17)</option>
-                    <option value="adult">Adult (18+)</option>
-                </select>
-            </div>
-            <div>
-                <label for="gender">Gender</label>
-                <select id="gender" name="gender">
-                    <option value="boy">Boy</option>
-                    <option value="girl">Girl</option>
-                    <option value="person" selected>Person</option>
-                </select>
-            </div>
-        </div>
-        <div class="grid">
-            <div>
-                <label for="ethnicity">Ethnicity</label>
-                <select id="ethnicity" name="ethnicity">
-                    <option value="" selected>-- Select --</option>
-                    <option value="Black">Black</option>
-                    <option value="White">White</option>
-                    <option value="Asian">Asian</option>
-                    <option value="South Asian">South Asian</option>
-                    <option value="Hispanic/Latino">Hispanic/Latino</option>
-                    <option value="Middle Eastern">Middle Eastern</option>
-                    <option value="Mixed">Mixed</option>
-                </select>
-            </div>
-        </div>
-        <div class="grid">
-            <div>
-                <label for="hair_color">Hair Color</label>
-                <select id="hair_color" name="hair_color">
-                    <option value="">-- Select --</option>
-                    <option value="blonde">Blonde</option>
-                    <option value="brown">Brown</option>
-                    <option value="black">Black</option>
-                    <option value="red">Red</option>
-                    <option value="auburn">Auburn</option>
-                    <option value="strawberry blonde">Strawberry Blonde</option>
-                    <option value="gray">Gray</option>
-                    <option value="white">White</option>
-                </select>
-            </div>
-            <div>
-                <label for="hair_style">Hair Style</label>
-                <select id="hair_style" name="hair_style">
-                    <option value="">-- Select --</option>
-                    <option value="short">Short</option>
-                    <option value="long">Long</option>
-                    <option value="curly">Curly</option>
-                    <option value="straight">Straight</option>
-                    <option value="wavy">Wavy</option>
-                    <option value="ponytail">Ponytail</option>
-                    <option value="braids">Braids</option>
-                    <option value="bun">Bun</option>
-                    <option value="afro">Afro</option>
-                    <option value="buzzed">Buzzed</option>
-                </select>
-            </div>
-            <div>
-                <label for="skin_tone">Skin Tone</label>
-                <select id="skin_tone" name="skin_tone">
-                    <option value="" selected>Auto-detect</option>
-                    <option value="very light">Very Light</option>
-                    <option value="light">Light</option>
-                    <option value="medium">Medium</option>
-                    <option value="olive">Olive</option>
-                    <option value="brown">Brown</option>
-                    <option value="dark brown">Dark Brown</option>
-                </select>
+            <div class="upload-right">
+                <!-- Placeholder: shown before upload -->
+                <div id="photo-placeholder">
+                    <svg viewBox="0 0 240 270" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <rect x="3" y="3" width="234" height="264" rx="14" fill="#f0f3fc" stroke="#c8d0ee" stroke-width="2" stroke-dasharray="10 6"/>
+                        <path d="M32 264 Q32 192 120 184 Q208 192 208 264Z" fill="#dce3f5"/>
+                        <rect x="109" y="150" width="22" height="22" rx="5" fill="#dce3f5"/>
+                        <circle cx="120" cy="112" r="52" fill="#dce3f5"/>
+                        <circle cx="103" cy="108" r="6" fill="#b0bcdf"/>
+                        <circle cx="137" cy="108" r="6" fill="#b0bcdf"/>
+                        <path d="M105 130 Q120 144 135 130" stroke="#b0bcdf" stroke-width="3" stroke-linecap="round" fill="none"/>
+                        <rect x="188" y="14" width="36" height="28" rx="5" fill="#c8d0ee"/>
+                        <circle cx="206" cy="28" r="7" fill="#f0f3fc"/>
+                        <circle cx="206" cy="28" r="4" fill="#b0bcdf"/>
+                        <rect x="210" y="16" width="8" height="5" rx="2" fill="#b0bcdf"/>
+                    </svg>
+                    <div class="placeholder-hints">
+                        <span class="hint good">&#10003; One person</span>
+                        <span class="hint good">&#10003; Face visible</span>
+                        <span class="hint good">&#10003; Well lit</span>
+                        <span class="hint bad">&#10005; No groups</span>
+                    </div>
+                    <p class="placeholder-label">Upload a photo to get started</p>
+                </div>
+
+                <!-- Photo preview: shown after upload -->
+                <div id="photo-preview-wrap" style="display:none;">
+                    <div class="preview-img-container">
+                        <img id="preview-img" alt="Uploaded photo preview">
+                        <div id="quality-overlay" class="quality-overlay analysing">
+                            <span class="quality-spinner"></span>
+                            <span class="quality-label">Checking photo...</span>
+                        </div>
+                    </div>
+                    <div id="quality-issues-list"></div>
+                </div>
             </div>
         </div>
-        <label for="extras">Additional Features (optional)</label>
-        <input type="text" id="extras" name="extras" placeholder="e.g., freckles, glasses, dimples">
-        <small>Hair color and style are the most important for a good likeness.</small>
+
+        <!-- Detection confirmation banner (attributes) -->
+        <div id="detect-banner" style="display:none; padding: 0.875rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;">
+            <span id="detect-banner-text"></span>
+        </div>
+
+        <div id="describe-section">
+            <label><strong>Describe the Person</strong></label>
+
+            <div class="grid">
+                <div>
+                    <label for="age_range">Age Range</label>
+                    <select id="age_range" name="age_range">
+                        <option value="toddler">Toddler (1-3)</option>
+                        <option value="child" selected>Child (4-12)</option>
+                        <option value="teen">Teen (13-17)</option>
+                        <option value="adult">Adult (18+)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="gender">Gender</label>
+                    <select id="gender" name="gender">
+                        <option value="boy">Boy</option>
+                        <option value="girl">Girl</option>
+                        <option value="person" selected>Person</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid">
+                <div>
+                    <label for="ethnicity">Ethnicity</label>
+                    <select id="ethnicity" name="ethnicity">
+                        <option value="" selected>-- Select --</option>
+                        <option value="Black">Black</option>
+                        <option value="White">White</option>
+                        <option value="Asian">Asian</option>
+                        <option value="South Asian">South Asian</option>
+                        <option value="Hispanic/Latino">Hispanic/Latino</option>
+                        <option value="Middle Eastern">Middle Eastern</option>
+                        <option value="Mixed">Mixed</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid">
+                <div>
+                    <label for="hair_color">Hair Color</label>
+                    <select id="hair_color" name="hair_color">
+                        <option value="">-- Select --</option>
+                        <option value="blonde">Blonde</option>
+                        <option value="brown">Brown</option>
+                        <option value="black">Black</option>
+                        <option value="red">Red</option>
+                        <option value="auburn">Auburn</option>
+                        <option value="strawberry blonde">Strawberry Blonde</option>
+                        <option value="gray">Gray</option>
+                        <option value="white">White</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="hair_style">Hair Style</label>
+                    <select id="hair_style" name="hair_style">
+                        <option value="">-- Select --</option>
+                        <option value="short">Short</option>
+                        <option value="long">Long</option>
+                        <option value="curly">Curly</option>
+                        <option value="straight">Straight</option>
+                        <option value="wavy">Wavy</option>
+                        <option value="ponytail">Ponytail</option>
+                        <option value="braids">Braids</option>
+                        <option value="bun">Bun</option>
+                        <option value="afro">Afro</option>
+                        <option value="buzzed">Buzzed</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="skin_tone">Skin Tone</label>
+                    <select id="skin_tone" name="skin_tone">
+                        <option value="" selected>-- Select --</option>
+                        <option value="very light">Very Light</option>
+                        <option value="light">Light</option>
+                        <option value="medium">Medium</option>
+                        <option value="olive">Olive</option>
+                        <option value="brown">Brown</option>
+                        <option value="dark brown">Dark Brown</option>
+                    </select>
+                </div>
+            </div>
+            <label for="extras">Additional Features (optional)</label>
+            <input type="text" id="extras" name="extras" placeholder="e.g., freckles, glasses, dimples">
+            <small>Hair color and style are the most important for a good likeness.</small>
+        </div>
 
         <details>
             <summary>Advanced</summary>
@@ -147,19 +198,270 @@
     </form>
 </article>
 
+<style>
+  /* Two-column upload layout */
+  .upload-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 640px) {
+    .upload-row { grid-template-columns: 1fr; }
+  }
+
+  /* Right column: placeholder */
+  #photo-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #f5f7ff;
+    border: 2px dashed #c8d0ee;
+    border-radius: 12px;
+    padding: 1rem 1rem 0.75rem;
+  }
+  #photo-placeholder svg { width: 100%; max-width: 200px; }
+  .placeholder-hints {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    justify-content: center; margin-top: 0.75rem;
+  }
+  .hint {
+    font-size: 0.75rem; padding: 0.2rem 0.5rem;
+    border-radius: 20px; font-weight: 500;
+  }
+  .hint.good { background: #e8f5ee; color: #1a6640; }
+  .hint.bad  { background: #fdf0f0; color: #9e2020; }
+  .placeholder-label {
+    font-size: 0.8rem; color: #8a95b8;
+    margin: 0.5rem 0 0; text-align: center;
+  }
+
+  /* Right column: photo preview */
+  .preview-img-container {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    line-height: 0;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  }
+  #preview-img { width: 100%; display: block; border-radius: 10px; }
+
+  /* Quality overlay */
+  .quality-overlay {
+    position: absolute;
+    bottom: 10px; right: 10px;
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem; font-weight: 600;
+    backdrop-filter: blur(4px);
+  }
+  .quality-overlay.analysing { background: rgba(40,60,140,0.75); color: #fff; }
+  .quality-overlay.good      { background: rgba(20,110,55,0.85); color: #fff; }
+  .quality-overlay.ok        { background: rgba(140,90,0,0.85);  color: #fff; }
+  .quality-overlay.poor      { background: rgba(160,20,20,0.9);  color: #fff; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .quality-spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  /* Issues list below photo */
+  #quality-issues-list {
+    margin-top: 0.5rem; font-size: 0.82rem;
+    border-radius: 6px; padding: 0;
+  }
+  #quality-issues-list.has-issues {
+    padding: 0.6rem 0.8rem;
+  }
+  #quality-issues-list.warn { background: #fff8e6; color: #7a4f0a; border: 1px solid #e8c88a; }
+  #quality-issues-list.fail { background: #fff0f0; color: #9e2020; border: 1px solid #e8aaaa; }
+
+  /* Describe section loading state */
+  #describe-section { transition: opacity 0.2s; }
+  #describe-section.loading { opacity: 0.4; pointer-events: none; }
+  #describe-section select.auto-detected { outline: 2px solid #2d9c5e; border-radius: 4px; }
+
+  /* Attribute detection banner */
+  #detect-banner.loading { background: #f0f4ff; border: 1px solid #a0b4e8; color: #2c4a9e; }
+  #detect-banner.success { background: #edfaf3; border: 1px solid #6dca9f; color: #1a6640; }
+  #detect-banner.error   { background: #fff8f0; border: 1px solid #e8c88a; color: #7a4f0a; }
+
+  .detect-spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid currentColor; border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+</style>
+
 <script>
 (function() {
-    const photo = document.getElementById('photo');
-    const consent = document.getElementById('consent-check');
-    const btn = document.getElementById('submit-btn');
+    const photo        = document.getElementById('photo');
+    const consent      = document.getElementById('consent-check');
+    const btn          = document.getElementById('submit-btn');
+    const banner       = document.getElementById('detect-banner');
+    const bannerText   = document.getElementById('detect-banner-text');
+    const section      = document.getElementById('describe-section');
+    const placeholder  = document.getElementById('photo-placeholder');
+    const previewWrap  = document.getElementById('photo-preview-wrap');
+    const previewImg   = document.getElementById('preview-img');
+    const qualOverlay  = document.getElementById('quality-overlay');
+    const qualIssues   = document.getElementById('quality-issues-list');
+
+    const autoFields = ['age_range', 'gender', 'ethnicity', 'hair_color', 'hair_style', 'skin_tone'];
+    let qualityBlocked = false;
 
     function check() {
-        const hasPhoto = photo && photo.files && photo.files.length > 0;
+        const hasPhoto   = photo && photo.files && photo.files.length > 0;
         const hasConsent = consent && consent.checked;
-        btn.disabled = !(hasPhoto && hasConsent);
+        btn.disabled = !(hasPhoto && hasConsent) || qualityBlocked;
     }
 
-    if (photo) photo.addEventListener('change', check);
+    // --- Photo preview ---
+    function showPreview(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            placeholder.style.display = 'none';
+            previewWrap.style.display = 'block';
+            // Reset overlay to analysing state
+            qualOverlay.className = 'quality-overlay analysing';
+            qualOverlay.innerHTML = '<span class="quality-spinner"></span><span class="quality-label">Checking photo...</span>';
+            qualIssues.className = '';
+            qualIssues.innerHTML = '';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // --- Quality overlay ---
+    function setQualityOverlay(grade, issues) {
+        qualOverlay.className = 'quality-overlay ' + grade;
+        if (grade === 'good') {
+            qualOverlay.innerHTML = '&#10003; Looks good!';
+            qualIssues.className = '';
+            qualIssues.innerHTML = '';
+        } else if (grade === 'ok') {
+            qualOverlay.innerHTML = '&#9888; Note';
+            if (issues && issues.length) {
+                qualIssues.className = 'has-issues warn';
+                qualIssues.innerHTML = '<strong>Just so you know:</strong> ' + issues.join(' &bull; ');
+            }
+        } else {
+            // poor — hard fail
+            qualOverlay.innerHTML = '&#10005; Please try another photo';
+            if (issues && issues.length) {
+                qualIssues.className = 'has-issues fail';
+                qualIssues.innerHTML = '<strong>Why this photo won\'t work:</strong> ' + issues.join(' &bull; ');
+            }
+        }
+    }
+
+    // --- Dropdown helpers ---
+    function setDropdown(id, value) {
+        const el = document.getElementById(id);
+        if (!el || !value) return;
+        const opt = Array.from(el.options).find(o => o.value === value);
+        if (opt) { el.value = value; el.classList.add('auto-detected'); }
+    }
+    function clearHighlights() {
+        autoFields.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('auto-detected');
+        });
+    }
+    autoFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => el.classList.remove('auto-detected'));
+    });
+
+    function showBanner(state, html) {
+        banner.className = state;
+        bannerText.innerHTML = html;
+        banner.style.display = 'block';
+    }
+
+    // --- Main detection call ---
+    function runDetection(file) {
+        clearHighlights();
+        section.classList.add('loading');
+        showBanner('loading', '<span class="detect-spinner"></span> Analysing photo with AI — this takes a few seconds...');
+
+        const formData = new FormData();
+        formData.append('photo', file);
+
+        fetch('/api/detect-attributes', { method: 'POST', body: formData })
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(attrs => {
+                section.classList.remove('loading');
+
+                // Handle empty / failed response
+                if (!attrs || Object.keys(attrs).length === 0) {
+                    setQualityOverlay('ok', []);
+                    showBanner('error', '&#9888; Could not auto-detect details — please fill in the fields below manually.');
+                    qualityBlocked = false;
+                    check();
+                    return;
+                }
+
+                // Quality gate
+                const grade  = attrs.quality_grade || 'ok';
+                const issues = attrs.quality_issues || [];
+                setQualityOverlay(grade, issues);
+                qualityBlocked = (grade === 'poor');
+                check();
+
+                if (grade === 'poor') {
+                    showBanner('error', '&#10005; <strong>This photo can\'t be used.</strong> Please upload a different one — see the photo preview for details.');
+                    // Don't populate dropdowns — not useful
+                    return;
+                }
+
+                // Populate dropdowns
+                setDropdown('age_range', attrs.age_range);
+                setDropdown('gender', attrs.gender);
+                setDropdown('ethnicity', attrs.ethnicity);
+                setDropdown('hair_color', attrs.hair_color);
+                setDropdown('hair_style', attrs.hair_style);
+                setDropdown('skin_tone', attrs.skin_tone);
+
+                if (grade === 'ok' && issues.length) {
+                    showBanner('loading',
+                        '&#9888; <strong>Photo accepted with minor notes — see preview for details.</strong> ' +
+                        'Please also check the detected fields below and correct anything that looks wrong.'
+                    );
+                } else {
+                    showBanner('success',
+                        '&#10003; <strong>Photo looks great! We\'ve detected the details below — please check each one and correct anything that looks wrong before continuing.</strong> ' +
+                        'Fields with a green border were auto-filled.'
+                    );
+                }
+            })
+            .catch(() => {
+                section.classList.remove('loading');
+                setQualityOverlay('ok', []);
+                showBanner('error', '&#9888; Auto-detect unavailable — please fill in the fields below manually.');
+                qualityBlocked = false;
+                check();
+            });
+    }
+
+    if (photo) {
+        photo.addEventListener('change', function() {
+            check();
+            if (photo.files && photo.files.length > 0) {
+                showPreview(photo.files[0]);
+                runDetection(photo.files[0]);
+            }
+        });
+    }
     if (consent) consent.addEventListener('change', check);
     check();
 })();
