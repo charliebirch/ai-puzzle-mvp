@@ -171,13 +171,11 @@ def step_remove_background(input_prepared_path: str, order_dir: str) -> dict:
 def _crop_to_face(bg_removed_path: str, output_path: str) -> str:
     """Crop a white-background cutout image to face + upper chest only.
 
-    Finds the bounding box of non-white pixels (the person cutout), then takes
-    the top portion of that box (roughly face + shoulders). This prevents Kontext
-    Max from seeing hand positions, body poses, or anything below the chest in
-    the source photo.
-
-    Falls back to the original image if cropping fails (e.g. image is entirely
-    white or very small).
+    Uses OpenCV face detection when available to find the actual face region
+    and crop around it with generous padding. Falls back to a bounding-box
+    heuristic (top 60% of person height) if OpenCV is unavailable or detects
+    no face. The 60% fallback is safer than the old 45% which cut off chins
+    in close-up/selfie photos.
 
     Args:
         bg_removed_path: Path to the white-background cutout (bg_removed.jpg).
@@ -186,19 +184,54 @@ def _crop_to_face(bg_removed_path: str, output_path: str) -> str:
     Returns:
         Path to the cropped image (output_path), or bg_removed_path on failure.
     """
+    def _save_crop(img, box, output_path):
+        """Crop img to box, composite onto white, save."""
+        left, top, right, bottom = box
+        cropped = img.crop((left, top, right, bottom)).convert("RGB")
+        white = Image.new("RGB", cropped.size, (255, 255, 255))
+        if cropped.mode == "RGBA":
+            white.paste(cropped, mask=cropped.split()[3])
+        else:
+            white.paste(cropped)
+        white.save(output_path)
+
     try:
         img = Image.open(bg_removed_path).convert("RGBA")
         w, h = img.size
 
-        # Build a mask of non-white pixels (person silhouette)
-        # White = R>240, G>240, B>240
+        # --- Try OpenCV face detection first ---
+        try:
+            import cv2
+            import numpy as np
+            cv_img = cv2.imread(bg_removed_path)
+            if cv_img is not None:
+                gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+                cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+                face_cascade = cv2.CascadeClassifier(cascade_path)
+                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+                if len(faces) > 0:
+                    # Use the largest detected face
+                    fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+                    # Pad: 80% of face size above/sides, 120% below (includes chest)
+                    pad = int(max(fw, fh) * 0.8)
+                    pad_below = int(fh * 1.2)
+                    left   = max(0, fx - pad)
+                    top    = max(0, fy - pad)
+                    right  = min(w, fx + fw + pad)
+                    bottom = min(h, fy + fh + pad_below)
+                    if (right - left) >= 64 and (bottom - top) >= 64:
+                        _save_crop(img, (left, top, right, bottom), output_path)
+                        print(f"  _crop_to_face: face detected at ({fx},{fy},{fw},{fh}), crop={left},{top},{right},{bottom}")
+                        return output_path
+        except ImportError:
+            pass  # OpenCV not available — fall through to heuristic
+
+        # --- Fallback: bounding box of non-white pixels, top 60% ---
         r, g, b, a = img.split()
-        import array as _array
         pixels_r = list(r.getdata())
         pixels_g = list(g.getdata())
         pixels_b = list(b.getdata())
 
-        # Find bounding box of non-white pixels
         min_x, min_y, max_x, max_y = w, h, 0, 0
         for idx, (pr, pg, pb) in enumerate(zip(pixels_r, pixels_g, pixels_b)):
             if pr < 240 or pg < 240 or pb < 240:
@@ -210,35 +243,24 @@ def _crop_to_face(bg_removed_path: str, output_path: str) -> str:
                 max_y = max(max_y, py)
 
         if max_x <= min_x or max_y <= min_y:
-            # No non-white pixels found — fall back
             return bg_removed_path
 
         person_h = max_y - min_y
         person_w = max_x - min_x
 
-        # Take the top 45% of the person's height (face + upper chest)
-        # with a horizontal padding of 20% of person width on each side
-        crop_h = int(person_h * 0.45)
+        # 60% (up from 45%) — safer for close-up selfies where 45% cut off chins
+        crop_h = int(person_h * 0.60)
         pad_x  = int(person_w * 0.20)
 
         left   = max(0, min_x - pad_x)
-        top    = max(0, min_y - int(person_h * 0.05))   # small top margin
+        top    = max(0, min_y - int(person_h * 0.05))
         right  = min(w, max_x + pad_x)
         bottom = min(h, min_y + crop_h)
 
         if (right - left) < 64 or (bottom - top) < 64:
             return bg_removed_path
 
-        cropped = img.crop((left, top, right, bottom)).convert("RGB")
-
-        # Composite onto white background
-        white = Image.new("RGB", cropped.size, (255, 255, 255))
-        if cropped.mode == "RGBA":
-            white.paste(cropped, mask=cropped.split()[3])
-        else:
-            white.paste(cropped)
-
-        white.save(output_path)
+        _save_crop(img, (left, top, right, bottom), output_path)
         return output_path
 
     except Exception as e:
@@ -288,6 +310,7 @@ def step_generate_character(
         prompt=prompt,
         image_path=actual_input,
         style_settings={},
+        aspect_ratio="3:4",  # Portrait — gives vertical space for full-body character
         seed=seed,
     )
     elapsed = time.time() - start
