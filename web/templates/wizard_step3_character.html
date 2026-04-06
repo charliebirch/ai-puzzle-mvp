@@ -7,18 +7,12 @@
     <p>Transforming the photo into a Pixar-style animated character. Cost: <strong>$0.08</strong></p>
 
     {% if step_data and step_data.status == "complete" %}
-    <!-- Step complete — show all three: bg removed, face crop reference, character output -->
+    <!-- Step complete — show before/after -->
     <div class="grid">
         <div>
             <h4>Background Removed</h4>
             <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
-            <small>Full cutout (original pose)</small>
-        </div>
-        <div>
-            <h4>Face Reference Sent to AI <small style="font-weight:normal; color: var(--pico-muted-color)">debug</small></h4>
-            <img src="/wizard/{{ job_id }}/image/character_input" alt="Cropped face reference"
-                 class="preview-img" onerror="this.parentElement.style.display='none'">
-            <small>Cropped to face + chest only — pose removed</small>
+            <small>Original photo, background removed</small>
         </div>
         <div>
             <h4>Pixar Character</h4>

@@ -18,19 +18,16 @@ The owner (Charlie) has some coding ability but relies on Claude Code as the pri
 ## The Pipeline (5 Steps)
 
 ```
-Photo → Remove BG ($0.01) → Character ($0.08) → Costume ($0.08) → Scene ($0.08) → Composite ($0.08)
+Photo → Remove BG ($0.01) → Character ($0.08) → Costume ($0.08) → Scene ($0.24) → Upscale ($0.002)
 ```
 
 1. **Background Removal** — `lucataco/remove-bg`, composite onto white
-2. **Character Generation** — `flux-kontext-max`, Pixar transform preserving identity
-3. **Costume** — `flux-kontext-max`, dress in themed outfit (white bg kept)
-4. **Scene Generation** — `flux-kontext-max`, empty detailed scene (no people)
-5. **Compositing** — 3 methods to compare:
-   - **Method E:** PIL composite → Kontext Max blend (1024px, best seamlessness)
-   - **Method K:** FLUX 2 Pro two-image input (2000px, best quality)
-   - **Method Q:** FLUX 2 Pro with distance language (2000px, smaller character)
+2. **Character Generation** — `flux-kontext-max`, Pixar transform preserving identity; face is cropped before sending
+3. **Costume** — `flux-kontext-max`, outfit picker (Adventurer or Wizard); prompts include `{subject}` for hair preservation
+4. **Scene Generation** — `flux-2-pro` text-only, detailed empty village scene with puzzle-optimised prompt
+5. **Compositing** — Method E only: PIL composite → 3× Kontext Max (different seeds) → quality-score → user picks → upscale
 
-**Cost:** ~$0.33 per puzzle (one method) or ~$0.49 (all three methods)
+**Cost:** ~$0.49 per full run
 
 Full technical details: `docs/PIPELINE.md`
 All learnings and rules: `docs/BEST_PRACTICES.md`
@@ -82,16 +79,19 @@ src/
     registry.py          # Backend factory (2 registered)
   quality/
     image_quality.py     # Visual quality metrics
-    puzzle_scorer.py     # 11-metric puzzle quality scorer (target: 65+ pass, 80+ good)
-  fulfill_order.py       # Simplified pipeline (rebuild pending for full 5-step)
-  style_presets.py       # Scene presets (rebuild pending)
+    puzzle_scorer.py     # 12-metric puzzle quality scorer (target: 65+ pass, 80+ good)
+  pipeline_steps.py      # All 5 pipeline step functions
+  scene_prompts.py       # All prompts + outfit_choices; get_character_prompt(), get_costume_prompt()
+  composite_pil.py       # PIL character-onto-scene compositing (pre-Kontext blend)
+  detect_attributes.py   # Claude vision auto-detect: age, gender, ethnicity, hair, skin tone
   remove_background.py   # Background removal via Replicate ($0.01)
   subject_builder.py     # Structured subject description builder
+  fulfill_order.py       # Legacy simplified pipeline (3-step, not the wizard)
 web/
-  app.py                 # FastAPI + Jinja2 + HTMX (rebuild pending)
+  app.py                 # FastAPI + Jinja2 + HTMX — 5-step wizard
   jobs.py                # SQLite job tracking
-  templates/             # HTML templates
-  static/                # CSS
+  templates/             # HTML templates (wizard_step1–5, base, poll fragment)
+  static/style.css       # Pico CSS + wizard progress + wardrobe picker styles
 docs/
   BEST_PRACTICES.md      # All learnings from testing (prompts, what works/doesn't)
   PIPELINE.md            # Technical pipeline reference (models, prompts, costs)
@@ -109,7 +109,7 @@ _archive/                # Old pipeline code and test outputs (gitignored)
 
 ## Quality Scoring
 
-Use `src/quality/puzzle_scorer.py` — 11 metrics, 0-100 composite score.
+Use `src/quality/puzzle_scorer.py` — 12 metrics, 0-100 composite score.
 
 | Threshold | Grade |
 |-----------|-------|
@@ -118,9 +118,11 @@ Use `src/quality/puzzle_scorer.py` — 11 metrics, 0-100 composite score.
 | < 40 | FAIL |
 | Hard fail triggers | HARD FAIL |
 
-Best score achieved: **95.3/100** on village scene with costumed character.
+Best composite score: **96.9/100** (TEST-CHARLIE-SCENE-V1B, 2026-04-06).
 
-Key metrics: flat regions (<25%), corner detail, hue diversity (8+ bins), edge density, subject dominance (<50%).
+Key metrics: flat regions (<25%), corner detail, hue diversity (8+ bins), edge density, subject dominance (<50%), white patch (hard fail only — detects unblended character halo).
+
+Note: white_patch detector produces false positives on pure scene images (no character) — this is expected and harmless. It only matters on composited candidates.
 
 ## Print Specs
 
@@ -134,10 +136,10 @@ Key metrics: flat regions (<25%), corner detail, hue diversity (8+ bins), edge d
 | Model | Replicate ID | Cost | Used For |
 |-------|-------------|------|----------|
 | Remove BG | `lucataco/remove-bg` | $0.01 | Step 1: background removal |
-| Kontext Max | `black-forest-labs/flux-kontext-max` | $0.08 | Steps 2-4 + Method E |
+| Kontext Max | `black-forest-labs/flux-kontext-max` | $0.08 | Steps 2, 3, 5 (compositing) |
 | Kontext Pro | `black-forest-labs/flux-kontext-pro` | $0.04 | Available, not default |
-| FLUX 2 Pro | `black-forest-labs/flux-2-pro` | ~$0.08 | Methods K & Q compositing |
-| Real-ESRGAN | `nightmareai/real-esrgan` | $0.002 | Upscaling (future) |
+| FLUX 2 Pro | `black-forest-labs/flux-2-pro` | ~$0.08 | Step 4: scene generation (text-only) |
+| Real-ESRGAN | `nightmareai/real-esrgan` | $0.002 | Step 5: upscale after user picks |
 
 ## Decisions Log
 
@@ -149,21 +151,30 @@ Key metrics: flat regions (<25%), corner detail, hue diversity (8+ bins), edge d
 | White background between steps | White, not transparent | Best results for AI model input | 2026-03-28 |
 | Separate costume step | Don't combine with character gen | Doing both in one prompt degrades both | 2026-03-28 |
 | Empty scenes (no people) | Generate scenes separately | AI can't do character + scene in one shot well | 2026-03-28 |
-| 3 compositing methods | E, K, Q for comparison | Each has tradeoffs (seamlessness vs resolution vs size) | 2026-03-28 |
-| FLUX 2 Pro for compositing | 2000px output, multi-image | Kontext Max capped at 1024px | 2026-03-28 |
-| Don't exaggerate features | "Do not enlarge eyes" | Bug-eyed characters, masculine jaws on women | 2026-03-28 |
+| Method E only | Removed K and Q | Method E gives best seamlessness; 3 seeds gives enough variety | 2026-04-06 |
+| FLUX 2 Pro for scene | Text-only, not Kontext Max | Kontext Max errors on white placeholder input for scene gen | 2026-04-06 |
+| Don't exaggerate features | "Slightly exaggerated Pixar proportions, expressive eyes — not bug-eyed" | Bug-eyed characters, masculine jaws on women | 2026-03-28 |
 | Gender-specific prompts | Feminine/masculine hints | Generic proportions without hints | 2026-03-28 |
+| {subject} in costume prompts | All costume prompts use get_costume_prompt() | Model alters hair to match outfit archetype without explicit text anchor | 2026-04-06 |
+| No text in scene | Explicit NO TEXT rule + per-object "no writing" | AI-generated fake text on signs looks bad | 2026-04-06 |
+| Scene prompt structured sections | FOREGROUND / MIDGROUND / BACKGROUND / CORNERS | Unstructured prompt → model ignores corners and produces flat sky | 2026-04-06 |
+| Landscape orientation | All outputs 4:3 landscape | Prodigi puzzles are landscape; portrait doesn't fill puzzle well | 2026-04-06 |
+| Upscale to 4x | Real-ESRGAN 4x, general model | Print requires 300 DPI; 2x output (~2048px) too low for 252pc+ | 2026-04-06 |
+| Prodigi as fulfillment partner | UK fulfillment, 110pc + 252pc launch | No minimums, premium tins, strong UK domestic shipping (2-5 days) | 2026-04-06 |
 
 ## Current Status
 
-- **Pipeline proven** — tested with multiple subjects, quality scores 85-95
-- **App rebuild pending** — current web app has old single-step flow
-- **Repo cleaned** — old code archived in `_archive/`, active code is minimal
-- **Next:** Build app that runs all 5 steps and shows 3 compositing methods side-by-side
+- **Pipeline proven** — 5-step wizard working end-to-end, scores 93–97/100
+- **Wardrobe picker** — Step 4 has interactive outfit choice UI (Adventurer + Wizard)
+- **Scene prompt v3** — landscape 4:3, wide panoramic, character left-of-centre composition
+- **Hair preservation** — costume prompts now inject `{subject}` via `get_costume_prompt()`
+- **Prodigi integration** — fulfillment partner selected; see `docs/PRODIGI.md` + `docs/PRODIGI_LAUNCH_CHECKLIST.md`
+- **Upscale 4x** — now outputs print-ready resolution for 110pc + 252pc puzzles
+- **Next:** Order sample puzzle via Prodigi dashboard, add export step for print-ready files
 
 ## Known Issues
 
 - Character size in compositing is unpredictable — model ignores percentage instructions
 - FLUX 2 Pro safety filter occasionally triggers on benign content (retry with different seed)
-- Kontext Max outputs capped at ~1024px — hard limit, no workaround
-- Quality varies per generation — run multiple seeds and pick best
+- Kontext Max outputs capped at ~1024px — hard limit; `laplacian_variance` stays low until upscaled
+- white_patch scorer produces false positives on pure scene images — expected, only meaningful on composites

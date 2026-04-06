@@ -30,6 +30,13 @@ load_dotenv()
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
 
+# Prodigi print specs: exact pixel dimensions at 300 DPI, sRGB, JPG
+PRODIGI_SIZES = {
+    "110pc": (2953, 2362),   # 250×200mm — 5:4 ratio
+    "252pc": (4429, 3366),   # 375×285mm — ~4:3 ratio
+}
+TIN_LID_SIZE = (869, 674)    # Small tin lid (fits 30/110/252pc puzzles)
+
 
 def step_validate_and_prepare(photo_path: str, order_dir: str) -> dict:
     """Step 1: Validate photo and prepare input image.
@@ -301,6 +308,8 @@ def step_costume(
     scene: str,
     order_dir: str,
     seed: Optional[int] = None,
+    outfit_id: Optional[str] = None,
+    subject: Optional[str] = None,
 ) -> dict:
     """Step 4: Dress the character in a themed costume using Kontext Max.
 
@@ -311,15 +320,23 @@ def step_costume(
         scene: Scene ID for costume selection.
         order_dir: Path to the order output directory.
         seed: Optional seed for reproducibility.
+        outfit_id: Optional outfit choice ID from scene outfit_choices. Falls back
+            to the scene's default costume_prompt if not provided or not found.
+        subject: Subject description (e.g. 'a young man with short dark hair').
+            Substituted into the prompt as an explicit hair/identity anchor.
+            Falls back to 'a person' if not provided.
 
     Returns:
         dict with costumed path, cost, and elapsed time.
     """
     from backends.registry import get_backend
-    from scene_prompts import get_scene
+    from scene_prompts import get_costume_prompt
 
-    scene_config = get_scene(scene)
-    prompt = scene_config["costume_prompt"]
+    prompt = get_costume_prompt(
+        scene_id=scene,
+        subject=subject or "a person",
+        outfit_id=outfit_id,
+    )
     backend = get_backend("flux_kontext_max")
 
     start = time.time()
@@ -404,7 +421,7 @@ def step_composite(
     scene_inputs = {
         "prompt": scene_config["scene_prompt"],
         "resolution": "4 MP",
-        "aspect_ratio": "1:1",
+        "aspect_ratio": "4:3",  # Landscape — matches all Prodigi puzzle formats
         "output_format": "png",
         "output_quality": 100,
         "safety_tolerance": 5,
@@ -437,12 +454,15 @@ def step_composite(
     pil_composite_path = str(order_dir / "_pil_composite.png")
     composite_character_onto_scene(costumed_path, scene_path, pil_composite_path)
 
-    # Generate 3 seeds: use provided seed + offsets, or random
+    # Generate 3 seeds with wide spread so each candidate is genuinely different.
+    # Close seeds (e.g. +10, +20) tend to produce similar failure modes — a bad
+    # blend pattern at seed N often repeats at N+10. Using large prime-spaced
+    # offsets gives three independent rolls.
     if seed is not None:
-        seeds = [seed, seed + 10, seed + 20]
+        seeds = [seed, seed + 31337, seed + 77777]
     else:
         base = random.randint(1, 999999)
-        seeds = [base, base + 10, base + 20]
+        seeds = [base, (base + 31337) % 1_000_000, (base + 77777) % 1_000_000]
 
     candidates = []
     for i, s in enumerate(seeds):
@@ -452,7 +472,7 @@ def step_composite(
             prompt=scene_config["composite_E_prompt"],
             image_path=pil_composite_path,
             style_settings={},
-            aspect_ratio="1:1",
+            aspect_ratio="4:3",  # Landscape — matches Prodigi puzzle format
             seed=s,
         )
         elapsed = time.time() - start
@@ -528,8 +548,8 @@ def step_upscale_final(candidate_path: str, order_dir: str) -> dict:
     result = upscale_image(
         input_path=candidate_path,
         output_path=final_path,
-        scale=2,
-        anime=True,
+        scale=4,  # 4x needed for 300 DPI print (110pc=2953px, 252pc=4429px)
+        anime=False,  # anime model (xinntao) currently broken on Replicate
         face_enhance=False,
     )
     final_size = list(result.get("final_size", result.get("upscaled_size", (0, 0))))
@@ -539,6 +559,86 @@ def step_upscale_final(candidate_path: str, order_dir: str) -> dict:
         "final": final_path,
         "final_size": final_size,
         "cost": result["cost_estimate"],
+    }
+
+
+def step_export_for_print(upscaled_path: str, size_code: str, order_dir: str) -> dict:
+    """Export print-ready files for Prodigi fulfillment.
+
+    Produces puzzle_surface.jpg at the exact Prodigi pixel dimensions for the
+    given size code, and tin_lid.jpg (center-cropped from the surface) in order_dir.
+
+    Resize strategy: scale-to-fill then center-crop. This matches Prodigi's own
+    fillPrintArea behaviour, so the preview is an accurate representation of print.
+
+    Args:
+        upscaled_path: Path to final.png (output of step_upscale_final).
+        size_code: '110pc' or '252pc'.
+        order_dir: Path to the order output directory.
+
+    Returns:
+        Dict with puzzle_surface, tin_lid, puzzle_surface_size, tin_lid_size, size_code.
+
+    Raises:
+        ValueError: If size_code is not recognised.
+    """
+    if size_code not in PRODIGI_SIZES:
+        raise ValueError(
+            f"Unknown size_code '{size_code}'. Must be one of: {list(PRODIGI_SIZES.keys())}"
+        )
+
+    target_w, target_h = PRODIGI_SIZES[size_code]
+    order_dir = Path(order_dir)
+    order_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load and convert to plain RGB (untagged sRGB — what Prodigi expects)
+    img = Image.open(upscaled_path)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+
+    src_w, src_h = img.size
+
+    # Scale-to-fill: scale so BOTH axes are >= target, then center-crop
+    scale = max(target_w / src_w, target_h / src_h)
+    new_w = round(src_w * scale)
+    new_h = round(src_h * scale)
+    img = img.resize((new_w, new_h), Image.LANCZOS)
+
+    left   = (new_w - target_w) // 2
+    top    = (new_h - target_h) // 2
+    puzzle_surface = img.crop((left, top, left + target_w, top + target_h))
+
+    surface_path = str(order_dir / "puzzle_surface.jpg")
+    puzzle_surface.save(
+        surface_path,
+        format="JPEG",
+        quality=95,
+        subsampling=0,   # 4:4:4 chroma — maximum colour fidelity for print
+        optimize=True,
+    )
+
+    # Tin lid: scale-to-fill then center-crop from the already-sized puzzle surface
+    lid_w, lid_h = TIN_LID_SIZE
+    pw, ph = puzzle_surface.size
+    lid_scale = max(lid_w / pw, lid_h / ph)
+    lid_new_w = round(pw * lid_scale)
+    lid_new_h = round(ph * lid_scale)
+    lid_img = puzzle_surface.resize((lid_new_w, lid_new_h), Image.LANCZOS)
+    lid_left = (lid_new_w - lid_w) // 2
+    lid_top  = (lid_new_h - lid_h) // 2
+    tin_lid = lid_img.crop((lid_left, lid_top, lid_left + lid_w, lid_top + lid_h))
+
+    lid_path = str(order_dir / "tin_lid.jpg")
+    tin_lid.save(lid_path, format="JPEG", quality=95, subsampling=0, optimize=True)
+
+    print(f"  Export ({size_code}): puzzle_surface {target_w}×{target_h}px, tin_lid {lid_w}×{lid_h}px")
+
+    return {
+        "puzzle_surface": surface_path,
+        "tin_lid": lid_path,
+        "puzzle_surface_size": [target_w, target_h],
+        "tin_lid_size": [lid_w, lid_h],
+        "size_code": size_code,
     }
 
 

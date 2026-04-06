@@ -516,58 +516,106 @@ def _score_subject_dominance(img_bgr: np.ndarray) -> MetricResult:
 
 
 def _score_white_patch(img_bgr: np.ndarray) -> MetricResult:
-    """Metric 12: Detect large near-pure-white patches — failed composite indicator.
+    """Metric 12: Detect unblended composite areas — failed seed indicator.
 
-    When the PIL composite background isn't blended away by Kontext Max, a clean
-    white area remains around the character's feet/edges. This is the tell-tale
-    sign of a seed where the model did almost nothing.
+    When Kontext Max has a bad seed the PIL composite background isn't blended
+    away. The unblended area can appear in two distinct forms:
 
-    Finds the largest connected region of near-pure white (all channels > 248)
-    after a small erosion to remove single-pixel noise. Hard fails if that region
-    covers >= 2% of the total image.
+    Form A — warm/cream blob (scene with golden-hour lighting):
+        High brightness (V > 200) + low saturation (S < 80) in the foot zone.
+        Detected as a connected blob in the bottom 60% of the image.
+        Hard fails if the largest blob >= 0.25% of total image.
 
-    Note: This threshold assumes non-snow scenes. A white building wall or bright
-    sky won't typically produce a single connected blob of this size at pure white.
+    Form B — cool/grey horizontal strip (scene with cooler lighting):
+        Appears as a band of desaturated, moderate-brightness pixels spanning
+        the full width at foot level. NOT caught by blob detection because the
+        strip pixels individually look like normal low-saturation scene colours.
+        Detected by scanning rows in the bottom 50% for consecutive rows where
+        >15% of pixels are low-saturation (S < 90) and moderate-brightness
+        (V > 130). Hard fails if 2+ consecutive such rows are found.
+
+    Both checks run on every image. Either failing = HARD_FAIL.
     """
     h, w = img_bgr.shape[:2]
     total_pixels = h * w
 
-    # Near-pure white: all three channels > 248
-    white_mask = np.all(img_bgr > 248, axis=2).astype(np.uint8)
+    img_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    V = img_hsv[:, :, 2]
+    S = img_hsv[:, :, 1]
 
-    # Erode slightly to remove isolated noise pixels
-    kernel = np.ones((3, 3), np.uint8)
-    white_mask = cv2.erode(white_mask, kernel, iterations=1)
+    hard_fail = False
+    fail_reason = ""
+    largest_pct = 0.0
 
-    # Find connected components
-    num_labels, _, stats, _ = cv2.connectedComponentsWithStats(white_mask, connectivity=8)
+    # --- Form A: Warm/cream blob detector ---
+    # Zone 1: Pure white anywhere
+    pure_white = np.all(img_bgr > 245, axis=2).astype(np.uint8)
 
-    if num_labels <= 1:
-        largest_pct = 0.0
-    else:
-        # stats rows: [label0=background, label1, ...]; column 4 = area
+    # Zone 2: High brightness + low saturation in bottom 60% (foot zone)
+    foot_start = int(h * 0.40)
+    washed_mask = np.zeros((h, w), dtype=np.uint8)
+    washed_mask[foot_start:, :] = (
+        (V[foot_start:, :] > 200) & (S[foot_start:, :] < 80)
+    ).astype(np.uint8)
+
+    combined = cv2.bitwise_or(pure_white, washed_mask)
+
+    # Morphological closing merges nearby fragments; erosion removes noise
+    combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    combined = cv2.erode(combined, np.ones((3, 3), np.uint8), iterations=1)
+
+    num_labels, _, stats, _ = cv2.connectedComponentsWithStats(combined, connectivity=8)
+    if num_labels > 1:
         areas = stats[1:, cv2.CC_STAT_AREA]
         largest_pct = float(np.max(areas)) / total_pixels * 100
+        if largest_pct >= 0.25:
+            hard_fail = True
+            fail_reason = (
+                f"Warm/cream unblended patch: {largest_pct:.2f}% of image (failed seed)"
+            )
 
-    # Score: <0.5% = fine, >=2% = hard fail
-    if largest_pct < 0.5:
+    # --- Form B: Cool/grey horizontal strip detector ---
+    # Scan rows in the bottom 50% for consecutive desaturated bands.
+    # A genuine strip from an unblended PIL composite will span 2+ consecutive
+    # rows with >15% of pixels having S < 90 and V > 130 (moderate but not dark).
+    if not hard_fail:
+        strip_start = int(h * 0.50)
+        consecutive = 0
+        max_consecutive = 0
+        for row in range(strip_start, h):
+            row_S = S[row, :]
+            row_V = V[row, :]
+            low_sat_pct = float(np.mean((row_S < 90) & (row_V > 130)) * 100)
+            if low_sat_pct > 15:
+                consecutive += 1
+                max_consecutive = max(max_consecutive, consecutive)
+            else:
+                consecutive = 0
+
+        if max_consecutive >= 2:
+            hard_fail = True
+            fail_reason = (
+                f"Desaturated horizontal strip across {max_consecutive} consecutive rows "
+                f"in foot zone — unblended composite background (failed seed)"
+            )
+            # Set largest_pct to the strip row count as a proxy (for score calc)
+            largest_pct = max(largest_pct, max_consecutive * 0.5)
+
+    # Score: 0 = no issue, hard fail = 0 score
+    if largest_pct < 0.1 and not hard_fail:
         score = 100.0
-    elif largest_pct < 2.0:
-        score = 100 - (largest_pct - 0.5) / 1.5 * 100  # 100 → 0
+    elif largest_pct < 0.25 and not hard_fail:
+        score = 100 - (largest_pct - 0.1) / 0.15 * 100
     else:
         score = 0.0
 
-    hard_fail = largest_pct >= 2.0
     return MetricResult(
         name="white_patch",
-        raw_value=round(largest_pct, 2),
+        raw_value=round(largest_pct, 3),
         normalized_score=round(max(0, min(100, score)), 1),
         weight=METRIC_WEIGHTS["white_patch"],
         hard_fail=hard_fail,
-        hard_fail_reason=(
-            f"White patch covers {largest_pct:.1f}% of image — composite not blended (failed seed)"
-            if hard_fail else ""
-        ),
+        hard_fail_reason=fail_reason if hard_fail else "",
     )
 
 

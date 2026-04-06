@@ -1,12 +1,12 @@
 {% extends "wizard_base.html" %}
-{% block title %}Step 4: Costume — {{ job_id }}{% endblock %}
+{% block title %}Step 4: Wardrobe — {{ job_id }}{% endblock %}
 
 {% block content %}
 <article>
-    <h2>Step 4: Costume</h2>
-    <p>Dressing the character in a themed outfit for the puzzle scene. Cost: <strong>$0.08</strong></p>
+    <h2>Step 4: Choose an Outfit ✨</h2>
 
     {% if step_data and step_data.status == "complete" %}
+    {# ── COMPLETE ─────────────────────────────────────────────────── #}
     <div class="grid">
         <div>
             <h4>Character</h4>
@@ -17,36 +17,92 @@
             <img src="/wizard/{{ job_id }}/image/costumed" alt="Costumed character" class="preview-img">
         </div>
     </div>
-    <p>Costume applied in {{ step_data.elapsed_seconds }}s (cost: ${{ "%.2f"|format(step_data.cost) }})</p>
-    <a href="/wizard/{{ job_id }}/step/5" role="button">Continue to Scene & Compositing</a>
+    <p class="cost-estimate">Outfit applied in {{ step_data.elapsed_seconds }}s · cost ${{ "%.2f"|format(step_data.cost) }}</p>
+
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
+        <a href="/wizard/{{ job_id }}/step/5" role="button">Continue to Scene &amp; Compositing →</a>
+        <a href="/wizard/{{ job_id }}/outfit-change" role="button" class="secondary outline">Change Outfit</a>
+    </div>
 
     {% elif step_data and step_data.status == "error" %}
+    {# ── ERROR ────────────────────────────────────────────────────── #}
     <article class="error-box">
-        <h3>Error</h3>
+        <h3>Something went wrong</h3>
         <p>{{ step_data.error }}</p>
         <a href="/wizard/{{ job_id }}/step/4" role="button" class="secondary">Retry</a>
     </article>
 
-    {% else %}
+    {% elif outfit_id %}
+    {# ── OUTFIT CHOSEN — PROCESSING ───────────────────────────────── #}
+    {% for choice in outfit_choices %}
+    {% if choice.id == outfit_id %}
+    <p>Dressing your character as <strong>{{ choice.emoji }} {{ choice.name }}</strong>…</p>
+    {% endif %}
+    {% endfor %}
+
     <div class="grid">
         <div>
             <h4>Character</h4>
             <img src="/wizard/{{ job_id }}/image/character" alt="Character" class="preview-img">
         </div>
         <div>
-            <h4>Processing...</h4>
+            <h4>Adding costume…</h4>
             <div id="poll-container"
                  hx-get="/wizard/{{ job_id }}/step/4/poll"
                  hx-trigger="load, every 3s"
                  hx-swap="innerHTML">
                 <article aria-busy="true">
-                    <p>Adding costume... (15-30 seconds)</p>
                     <progress></progress>
+                    <p style="text-align:center;margin-top:0.5rem;">This takes about 15–30 seconds</p>
                 </article>
             </div>
         </div>
     </div>
     <div hx-post="/wizard/{{ job_id }}/step/4/run" hx-trigger="load" hx-swap="none"></div>
+
+    {% else %}
+    {# ── WARDROBE PICKER ──────────────────────────────────────────── #}
+    <p>Pick an outfit for your character. You can change it before continuing.</p>
+
+    <form method="post" action="/wizard/{{ job_id }}/outfit" id="wardrobe-form">
+        <div class="wardrobe-grid">
+            {% for choice in outfit_choices %}
+            <label class="wardrobe-card-label" for="outfit_{{ choice.id }}">
+                <input
+                    type="radio"
+                    name="outfit_id"
+                    id="outfit_{{ choice.id }}"
+                    value="{{ choice.id }}"
+                    class="wardrobe-radio"
+                >
+                <div class="wardrobe-card">
+                    <div class="wardrobe-emoji">{{ choice.emoji }}</div>
+                    <div class="wardrobe-name">{{ choice.name }}</div>
+                    <div class="wardrobe-desc">{{ choice.description }}</div>
+                    <div class="wardrobe-check">✓ Selected</div>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+
+        <div class="wardrobe-action" id="wardrobe-action" style="display:none;">
+            <button type="submit" id="wardrobe-submit">
+                Dress Up! 🎉
+            </button>
+        </div>
+    </form>
+
+    <script>
+        const radios = document.querySelectorAll('.wardrobe-radio');
+        const action = document.getElementById('wardrobe-action');
+        radios.forEach(r => {
+            r.addEventListener('change', () => {
+                action.style.display = 'block';
+                action.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        });
+    </script>
     {% endif %}
+
 </article>
 {% endblock %}

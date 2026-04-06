@@ -59,46 +59,54 @@ Composition:
 - Keep it as a **separate step** from character generation. Asking the model to transform AND costume in one shot degrades both.
 - Input: the white-background character from Step 2
 - Describe the themed outfit explicitly (leather vest, cape, boots, etc.)
-- **Always say**: "Keep their face, skin tone, hair, glasses, and expression exactly the same. Keep the white background."
+- **Always include `{subject}` in the costume prompt** — "This character is {subject}. Keep their face, skin tone, hair colour, hair texture, and hairstyle exactly as they are — do not alter the hair in any way." Without explicit text the model will alter hair to match outfit archetype (e.g. wizard hat → long flowing hair replaces the original).
+- **Wizard outfit special case** — add: "the wizard hat sits on top of their existing hair, it does not replace or hide it." Without this the hat replaces the hair entirely.
+- Use `get_costume_prompt(scene_id, subject, outfit_id)` in `scene_prompts.py` — it handles both outfit selection and `{subject}` formatting.
 - The costume step is cheap ($0.08) and dramatically improves the final image.
+
+## Orientation — Landscape 4:3
+
+All pipeline outputs are landscape (4:3 aspect ratio). This matches all Prodigi puzzle formats.
+
+- **FLUX 2 Pro scene gen:** `"aspect_ratio": "4:3"` in Replicate inputs
+- **Kontext Max compositing:** `aspect_ratio="4:3"` passed to backend
+- **Composite layout:** Character at ~38% from left centre — leaves right ~60% as visible scene
+- **Scene prompt:** Must describe a wide horizontal composition — street running left-to-right, elements on both sides, wide sky
 
 ## Scene Generation (Step 4)
 
 - Generate scenes with **NO PEOPLE**. The character gets composited in separately.
 - **Pack every inch with detail** — this is what makes a good puzzle:
-  - Name 15+ specific objects
-  - Specify objects in corners (sleeping cat, potted flowers, postbox)
+  - Name 20+ specific objects across 3 depth layers
+  - **Explicit corner callouts are critical** — name one object per corner; corners are assembled first
   - 3 depth layers: foreground objects, midground buildings, background sky/hills
-  - Sky must have clouds, rainbow, birds, hot air balloon — not flat blue
+  - Sky must have 3+ hue variations (golden-orange → coral → lavender-blue), light rays, and layered cloud formations — not flat blue
+  - Stream/water needs surface detail: reflections, ripples, lily pads — otherwise it's a flat zone
+  - Houses need interior window detail: curtains, flower pots visible inside — missed texture zone
+  - Ground needs texture variation: moss between cobblestones, puddles, fallen petals, worn edges
+  - Add a hard rule: "no large areas of uniform colour anywhere — every surface has texture, wear, or pattern"
+- **NO TEXT rule** — specify "No text, words, letters, or writing anywhere. All signs, awnings, and surfaces must be plain or patterned." The only exception is clock faces with Roman numerals (which look great).
+  - Name risky objects explicitly: "plain red postbox with no text", "blank arrow-shaped signpost boards (no writing)", "plain striped awning (no name)"
 - The scene prompt is where puzzle rules belong, NOT the compositing prompt.
+- **Sky hue diversity** — explicitly name the colours: "vivid cornflower blue and lavender-purple at the top, fading through coral and pink toward the horizon." Without this the model defaults to warm golden-only palette (5 hue bins) and fails the hue_diversity metric (needs 8+).
 
 ## Compositing (Step 5)
 
-Three methods discovered, each with different strengths:
+Only Method E is currently active. Methods K and Q are removed.
 
-### Method E: Kontext Max single-image blend
-- PIL composite character onto scene → send through Kontext Max
+### Method E: Kontext Max single-image blend (active)
+- PIL composite character onto scene → send through Kontext Max 3× with different seeds → quality-score → user picks
 - **Best for:** Seamlessness. Character feels like they belong.
 - **Downside:** 1024px output. Face detail limited at print size.
-- **Cost:** $0.08
-
-### Method K: FLUX 2 Pro two-image
-- Send character + scene as two separate `input_images` to FLUX 2 Pro
-- **Best for:** Overall quality and resolution (2000x2000)
-- **Downside:** Character tends to be too big (~40%). Can't control size reliably.
-- **Cost:** ~$0.08
-
-### Method Q: FLUX 2 Pro with distance language
-- Same as K but prompt says "further down the path, in the midground"
-- **Best for:** Smaller character in the scene while maintaining quality
-- **Downside:** Size still somewhat unpredictable
-- **Cost:** ~$0.08
+- **Cost:** $0.08 × 3 = $0.24
 
 ### Compositing rules
-- **Keep the prompt simple.** Don't overload with puzzle rules — it causes lighting artifacts.
-- **Never say** "fill every corner" or "maximum detail" in the compositing prompt — the model interprets this as "blast light on everything."
+- **Protect scene detail explicitly.** Kontext Max will simplify the background to make the blend look clean — catastrophic for puzzle quality. The composite prompt MUST say "keep ALL background detail exactly as it is — do not alter, blur, or simplify any buildings, textures, or objects."
+- **Name the corners in the composite prompt.** If the scene prompt names corner objects, name them again in the composite prompt so the model knows to preserve them.
+- **Never say** "fill every corner" or "maximum detail" — the model interprets this as "blast light on everything."
 - **Do say** "keep everything exactly as it is, just make it look unified and natural."
-- Run 2-3 seeds and pick the best — quality varies per generation.
+- Run 3 seeds and pick the best — quality varies per generation. Seeds should be widely spaced (base, base+31337, base+77777).
+- **Add no-text rule to composite prompt too** — "Do not add any text, words, letters, or writing anywhere."
 
 ## Resolution Constraints
 
@@ -109,6 +117,17 @@ Three methods discovered, each with different strengths:
 | FLUX 2 Pro | ~2000px | Set `resolution: "4 MP"` |
 
 This is the fundamental tradeoff: Kontext blends better but at lower resolution. FLUX 2 Pro gives higher resolution but treats inputs as separate things.
+
+### Print Resolution Requirements (Prodigi)
+
+Upscale uses Real-ESRGAN **4x** (not 2x). Anime model (xinntao) currently broken on Replicate — use general model.
+
+| Puzzle | Physical size | Required px @ 300 DPI | Covered by 4x upscale? |
+|--------|--------------|----------------------|----------------------|
+| 110pc | 250×200mm | 2953×2362px | ✓ (1024→4096px) |
+| 252pc | 375×285mm | 4429×3366px | ✓ (1152→4608px) |
+| 500pc | 530×390mm | 6260×4606px | Marginal (1536→6144px) |
+| 1000pc | 765×525mm | 9035×6165px | ✓ (2048→8192px) |
 
 ## Puzzle Quality Scoring
 

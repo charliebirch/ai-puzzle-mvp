@@ -7,28 +7,80 @@
     <p>Generating a detailed scene and compositing your character into it 3 ways. Cost: <strong>~$0.32</strong></p>
 
     {% if step_data and step_data.status == "complete" and step_data.final is defined %}
-    <!-- User has picked — show final upscaled result -->
-    <h3>Your Puzzle Image</h3>
-    <div style="max-width: 600px; margin: 0 auto 1.5rem;">
-        <img src="/wizard/{{ job_id }}/image/final" alt="Final puzzle composite" class="preview-img">
+    <!-- User has picked — show print-ready result -->
+    {% set size_labels = {"110pc": "110 pieces (250×200mm)", "252pc": "252 pieces (375×285mm)"} %}
+    {% set size_code = step_data.size_code | default("252pc") %}
+
+    <h3>Your Puzzle is Ready to Print</h3>
+
+    <div style="max-width: 640px; margin: 0 auto 1.5rem;">
+        <img src="/wizard/{{ job_id }}/image/final" alt="Final puzzle image" class="preview-img"
+             style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
     </div>
 
-    <article>
-        <h4>Details</h4>
-        <table>
-            <tbody>
-                <tr><td>Selected</td><td>Candidate #{{ step_data.user_pick }}</td></tr>
-                <tr><td>Final Resolution</td><td>{{ step_data.final_size[0] }}x{{ step_data.final_size[1] }}px (upscaled)</td></tr>
-                <tr><td>Time</td><td>{{ step_data.elapsed_seconds }}s</td></tr>
-                <tr><td>Step Cost</td><td>${{ "%.2f"|format(step_data.cost) }}</td></tr>
-            </tbody>
-        </table>
+    {% if step_data.tin_lid is defined %}
+    <div style="text-align: center; margin-bottom: 1.5rem;">
+        <p style="font-size: 0.875rem; color: var(--pico-muted-color); margin-bottom: 0.5rem;">
+            Tin lid (auto-cropped from puzzle surface)
+        </p>
+        <div style="display: inline-block; padding: 6px; background: linear-gradient(145deg, #c0a870, #8a6c40); border-radius: 6px; box-shadow: 0 3px 12px rgba(0,0,0,0.3);">
+            <img src="/wizard/{{ job_id }}/image/tin_lid"
+                 alt="Tin lid preview"
+                 style="display: block; max-width: 260px; border-radius: 3px;"
+                 onerror="this.closest('div').style.display='none'">
+        </div>
+        <p style="font-size: 0.75rem; color: var(--pico-muted-color); margin-top: 0.4rem;">869×674px</p>
+    </div>
+    {% endif %}
+
+    <!-- Download buttons -->
+    {% if step_data.puzzle_surface is defined %}
+    <div class="grid" style="max-width: 480px; margin: 0 auto 1.5rem;">
+        <a href="/wizard/{{ job_id }}/download/puzzle-surface" role="button">
+            Download puzzle surface
+            <small style="display:block; font-weight:400; opacity:0.85;">
+                {{ step_data.puzzle_surface_size[0] }}×{{ step_data.puzzle_surface_size[1] }}px · JPG · print-ready
+            </small>
+        </a>
+        {% if step_data.tin_lid is defined %}
+        <a href="/wizard/{{ job_id }}/download/tin-lid" role="button" class="secondary">
+            Download tin lid
+            <small style="display:block; font-weight:400; opacity:0.85;">869×674px · JPG · print-ready</small>
+        </a>
+        {% endif %}
+    </div>
+    {% else %}
+    <!-- Fallback for legacy jobs or if export failed -->
+    <div style="max-width: 480px; margin: 0 auto 1.5rem;">
+        <a href="/wizard/{{ job_id }}/download/final" role="button">Download puzzle image (PNG)</a>
+    </div>
+    {% endif %}
+
+    <!-- What happens next -->
+    <article style="background: #f0f5ff; border: 1px solid #c8d8f0; border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+        <h4 style="margin-top: 0;">What happens next?</h4>
+        <ol style="margin-bottom: 0; padding-left: 1.25rem;">
+            <li><strong>Download both files above</strong> — the puzzle surface and tin lid are sized exactly for Prodigi.</li>
+            <li><strong>Go to prodigi.com</strong> → create an order → select <em>{{ size_labels.get(size_code, size_code) }} Jigsaw Puzzle</em> → upload the puzzle surface file, then the tin lid file when prompted.</li>
+            <li><strong>Use fillPrintArea</strong> as the sizing method (Prodigi default) — a small edge crop is expected and by design.</li>
+        </ol>
     </article>
 
-    <div class="grid">
-        <a href="/wizard/{{ job_id }}/download/final" role="button">Download Puzzle Image</a>
-        <a href="/wizard/new" role="button" class="secondary">Start New Puzzle</a>
-    </div>
+    <!-- Technical details (collapsible) -->
+    <details>
+        <summary>Technical details</summary>
+        <table>
+            <tbody>
+                <tr><td>Puzzle size</td><td>{{ size_labels.get(size_code, size_code) }}</td></tr>
+                {% if step_data.puzzle_surface_size is defined %}
+                <tr><td>Puzzle surface</td><td>{{ step_data.puzzle_surface_size[0] }}×{{ step_data.puzzle_surface_size[1] }}px · JPG · sRGB</td></tr>
+                {% endif %}
+                <tr><td>Source resolution</td><td>{{ step_data.final_size[0] }}×{{ step_data.final_size[1] }}px (4× upscaled)</td></tr>
+                <tr><td>Candidate selected</td><td>#{{ step_data.user_pick }}</td></tr>
+                <tr><td>Step cost</td><td>${{ "%.2f"|format(step_data.cost) }}</td></tr>
+            </tbody>
+        </table>
+    </details>
 
     {% elif step_data and step_data.status == "complete" and step_data.candidates is defined %}
     <!-- Candidates ready — show all 3 for user to pick -->

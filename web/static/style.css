@@ -316,3 +316,115 @@ table td, table th {
     width: 100%;
 }
 
+/* ===== Wardrobe Picker ===== */
+.wardrobe-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+}
+
+.wardrobe-card-label {
+    cursor: pointer;
+    display: block;
+}
+
+.wardrobe-radio {
+    display: none;
+}
+
+.wardrobe-card {
+    border: 2.5px solid #ddd;
+    border-radius: 16px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    background: var(--pico-card-background-color, #fff);
+    transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+    position: relative;
+    user-select: none;
+}
+
+.wardrobe-card:hover {
+    border-color: #a78bfa;
+    box-shadow: 0 4px 18px rgba(139, 92, 246, 0.15);
+    transform: translateY(-2px);
+}
+
+.wardrobe-radio:checked + .wardrobe-card {
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2), 0 4px 18px rgba(139, 92, 246, 0.2);
+    transform: translateY(-3px);
+}
+
+.wardrobe-emoji {
+    font-size: 3rem;
+    line-height: 1;
+    margin-bottom: 0.6rem;
+    transition: transform 0.2s;
+}
+
+.wardrobe-card:hover .wardrobe-emoji {
+    transform: scale(1.15) rotate(-5deg);
+}
+
+.wardrobe-radio:checked + .wardrobe-card .wardrobe-emoji {
+    transform: scale(1.2) rotate(-5deg);
+}
+
+.wardrobe-name {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 0.4rem;
+    color: var(--pico-color, #222);
+}
+
+.wardrobe-desc {
+    font-size: 0.82rem;
+    color: #888;
+    line-height: 1.4;
+    margin-bottom: 0.75rem;
+}
+
+.wardrobe-check {
+    display: none;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.08);
+    border-radius: 20px;
+    padding: 0.2em 0.8em;
+    margin-top: 0.25rem;
+}
+
+.wardrobe-radio:checked + .wardrobe-card .wardrobe-check {
+    display: inline-block;
+}
+
+.wardrobe-action {
+    text-align: center;
+    margin-top: 0.5rem;
+    animation: pop-in 0.25s ease;
+}
+
+.wardrobe-action button {
+    font-size: 1.1rem;
+    padding: 0.7rem 2.5rem;
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    border: none;
+    border-radius: 999px;
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.wardrobe-action button:hover {
+    transform: scale(1.04);
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
+}
+
+@keyframes pop-in {
+    from { opacity: 0; transform: scale(0.9) translateY(6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+

@@ -146,6 +146,8 @@ def _run_wizard_step(job_id: str, step: int):
                 scene=meta.get("scene", "village"),
                 order_dir=str(order_dir),
                 seed=meta.get("seed"),
+                outfit_id=meta.get("outfit_id"),
+                subject=meta.get("subject"),
             )
 
         elif step == 5:
@@ -257,6 +259,7 @@ async def wizard_start(
     consent: str = Form(...),
     subject: str = Form(""),
     seed: Optional[str] = Form(""),
+    puzzle_size: str = Form("252pc"),
     # Structured subject fields
     age_range: str = Form(""),
     gender: str = Form(""),
@@ -327,11 +330,16 @@ async def wizard_start(
         except ValueError:
             pass
 
+    # Validate puzzle size
+    if puzzle_size not in ("110pc", "252pc"):
+        puzzle_size = "252pc"
+
     # Build initial metadata
     meta = {
         "scene": "village",
         "subject": final_subject,
         "gender": gender or "person",
+        "puzzle_size": puzzle_size,
         "current_step": 2,
         "steps": {
             "1": {**result, "status": "complete"},
@@ -348,6 +356,7 @@ async def wizard_start(
         style="village",
         subject=final_subject,
         backend="flux_kontext_max",
+        puzzle_size=int(puzzle_size.replace("pc", "")),
         metadata=json.dumps(meta, default=str),
     )
 
@@ -380,13 +389,56 @@ async def wizard_step(request: Request, job_id: str, step: int):
     job["meta"] = meta
     step_data = _get_step_data(meta, step)
 
-    return _render(request, STEP_TEMPLATES[step], {
+    ctx = {
         "job_id": job_id,
         "job": job,
         "step_data": step_data if step_data else None,
         "current_step": step,
         "total_cost": _total_cost(meta),
-    })
+    }
+
+    # Step 4: inject outfit choices so the wardrobe picker can render.
+    if step == 4:
+        from scene_prompts import get_scene
+        scene_cfg = get_scene(meta.get("scene", "village"))
+        ctx["outfit_choices"] = scene_cfg.get("outfit_choices", [])
+        ctx["outfit_id"] = meta.get("outfit_id")
+
+    return _render(request, STEP_TEMPLATES[step], ctx)
+
+
+@app.get("/wizard/{job_id}/outfit-change")
+async def wizard_change_outfit(job_id: str):
+    """Clear current outfit choice so the wardrobe picker shows again."""
+    job = get_job(job_id)
+    if not job:
+        return HTMLResponse("Job not found", status_code=404)
+
+    meta = _parse_metadata(job)
+    meta.pop("outfit_id", None)
+    meta.setdefault("steps", {}).pop("4", None)
+    update_job(job_id, metadata=json.dumps(meta, default=str))
+
+    return RedirectResponse(url=f"/wizard/{job_id}/step/4", status_code=303)
+
+
+@app.post("/wizard/{job_id}/outfit")
+async def wizard_set_outfit(
+    job_id: str,
+    outfit_id: str = Form(...),
+):
+    """Save the user's outfit choice to job metadata, then redirect to step 4."""
+    job = get_job(job_id)
+    if not job:
+        return HTMLResponse("Job not found", status_code=404)
+
+    meta = _parse_metadata(job)
+    meta["outfit_id"] = outfit_id
+    # Reset step 4 so it re-runs with the new outfit choice.
+    meta.setdefault("steps", {}).pop("4", None)
+    update_job(job_id, metadata=json.dumps(meta, default=str))
+
+    return RedirectResponse(url=f"/wizard/{job_id}/step/4", status_code=303)
 
 
 @app.post("/wizard/{job_id}/step/{step}/run")
@@ -444,8 +496,8 @@ async def wizard_step_poll(request: Request, job_id: str, step: int):
 # ---------------------------------------------------------------------------
 
 def _run_upscale(job_id: str, candidate_num: int):
-    """Background task: upscale the user's chosen candidate."""
-    from pipeline_steps import step_upscale_final, save_manifest
+    """Background task: upscale the user's chosen candidate, then export print files."""
+    from pipeline_steps import step_upscale_final, step_export_for_print, save_manifest
 
     job = get_job(job_id)
     if not job:
@@ -464,6 +516,16 @@ def _run_upscale(job_id: str, candidate_num: int):
         step5["final_size"] = result["final_size"]
         step5["cost"] = round(step5.get("cost", 0) + result["cost"], 3)
         step5["user_pick"] = candidate_num
+
+        # Export print-ready files for Prodigi
+        size_code = meta.get("puzzle_size", "252pc")
+        export = step_export_for_print(result["final"], size_code, str(order_dir))
+        step5["puzzle_surface"] = export["puzzle_surface"]
+        step5["tin_lid"] = export["tin_lid"]
+        step5["puzzle_surface_size"] = export["puzzle_surface_size"]
+        step5["tin_lid_size"] = export["tin_lid_size"]
+        step5["size_code"] = export["size_code"]
+
         step5["status"] = "complete"
         meta["steps"]["5"] = step5
         meta["total_cost"] = _total_cost(meta)
@@ -518,6 +580,24 @@ async def wizard_download_final(job_id: str):
     return HTMLResponse("File not available", status_code=404)
 
 
+@app.get("/wizard/{job_id}/download/puzzle-surface")
+async def wizard_download_puzzle_surface(job_id: str):
+    """Download the print-ready puzzle surface (exact Prodigi dimensions)."""
+    path = Path("orders") / job_id / "puzzle_surface.jpg"
+    if path.exists():
+        return FileResponse(str(path), filename=f"{job_id}_puzzle_surface.jpg", media_type="image/jpeg")
+    return HTMLResponse("File not available", status_code=404)
+
+
+@app.get("/wizard/{job_id}/download/tin-lid")
+async def wizard_download_tin_lid(job_id: str):
+    """Download the print-ready tin lid image."""
+    path = Path("orders") / job_id / "tin_lid.jpg"
+    if path.exists():
+        return FileResponse(str(path), filename=f"{job_id}_tin_lid.jpg", media_type="image/jpeg")
+    return HTMLResponse("File not available", status_code=404)
+
+
 # ---------------------------------------------------------------------------
 # Wizard: Image serving
 # ---------------------------------------------------------------------------
@@ -528,6 +608,8 @@ IMAGE_FILES = {
     "character_input": "character_input.png",
     "character": "character.png",
     "costumed": "costumed.png",
+    "puzzle_surface": "puzzle_surface.jpg",
+    "tin_lid": "tin_lid.jpg",
     "scene": "scene.png",
     "final": "final.png",
     "candidate_1": "candidate_1.png",

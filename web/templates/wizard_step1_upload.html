@@ -183,6 +183,27 @@
             </div>
         </details>
 
+        <!-- Puzzle size selection -->
+        <fieldset>
+            <legend><strong>Puzzle Size</strong></legend>
+            <label>
+                <input type="radio" name="puzzle_size" value="252pc" checked>
+                <span><strong>252 pieces</strong> — 375×285mm
+                    <small style="display:block; color: var(--pico-muted-color)">
+                        Recommended — best margin, native 4:3 format (no crop)
+                    </small>
+                </span>
+            </label>
+            <label>
+                <input type="radio" name="puzzle_size" value="110pc">
+                <span><strong>110 pieces</strong> — 250×200mm
+                    <small style="display:block; color: var(--pico-muted-color)">
+                        Smaller gift option — slight side-crop applied at export
+                    </small>
+                </span>
+            </label>
+        </fieldset>
+
         <fieldset>
             <label>
                 <input type="checkbox" name="consent" value="yes" id="consent-check" required>
