@@ -15,19 +15,20 @@ The owner (Charlie) has some coding ability but relies on Claude Code as the pri
 - **Track decisions.** Record significant choices in memory.
 - **Document code.** Add docstrings and comments.
 
-## The Pipeline (5 Steps + Export)
+## The Pipeline (6 Steps + Export)
 
 ```
-Photo → Remove BG ($0.01) → Character ($0.08) → Costume ($0.08) → Scene ($0.24) → Upscale ($0.002) → Export (free)
+Photo → Remove BG ($0.01) → Normalise ($0.08) → Character ($0.08) → Costume ($0.08) → Scene ($0.24) → Upscale ($0.002) → Export (free)
 ```
 
-1. **Background Removal** — `lucataco/remove-bg`, composite onto white
-2. **Character Generation** — `flux-kontext-max`, Pixar transform preserving identity; face is cropped before sending
-3. **Costume** — `flux-kontext-max`, outfit picker (Adventurer or Wizard); prompts include `{subject}` for hair preservation
-4. **Scene Generation** — `flux-2-pro` text-only, detailed empty village scene with puzzle-optimised prompt
-5. **Compositing** — Method E only: PIL composite → 3× Kontext Max (different seeds) → quality-score → user picks → upscale → `step_export_for_print()` auto-runs
+1. **Background Removal** — `recraft-ai/recraft-remove-background`, composite onto white (fallback: `lucataco/remove-bg` via `BG_REMOVAL_BACKEND` env var)
+2. **Portrait Normalisation** — `flux-kontext-max`, standardises photo to front-facing, shoulders-up, white bg; skippable via `NORMALIZE_PORTRAIT=0`
+3. **Character Generation** — `flux-kontext-max`, Pixar transform from normalised portrait; face is cropped before sending; no text attribute injection — image drives identity
+4. **Costume** — `flux-kontext-max`, outfit picker (Adventurer or Wizard); IDENTITY LOCK prompt; `{subject}="the person in the input image"`
+5. **Scene Generation** — `flux-2-pro` text-only, detailed empty village scene with puzzle-optimised prompt
+6. **Compositing** — Method E only: PIL composite → 3× Kontext Max (different seeds) → quality-score → user picks → upscale → `step_export_for_print()` auto-runs
 
-**Cost:** ~$0.49 per full run
+**Cost:** ~$0.57 per full run
 
 Full technical details: `docs/PIPELINE.md`
 All learnings and rules: `docs/BEST_PRACTICES.md`
@@ -110,7 +111,7 @@ _archive/                # Old pipeline code and test outputs (gitignored)
 
 ## Quality Scoring
 
-Use `src/quality/puzzle_scorer.py` — 12 metrics, 0-100 composite score.
+Use `src/quality/puzzle_scorer.py` — 13 metrics, 0-100 composite score.
 
 | Threshold | Grade |
 |-----------|-------|
@@ -121,7 +122,7 @@ Use `src/quality/puzzle_scorer.py` — 12 metrics, 0-100 composite score.
 
 Best composite score: **96.9/100** (TEST-CHARLIE-SCENE-V1B, 2026-04-06).
 
-Key metrics: flat regions (<25%), corner detail, hue diversity (8+ bins), edge density, subject dominance (<50%), white patch (hard fail only — detects unblended character halo).
+Key metrics: flat regions (<25%), corner detail, hue diversity (8+ bins), edge density, subject dominance (<50%), shadow presence (ground shadow under character), white patch (hard fail only — detects unblended character halo).
 
 Note: white_patch detector produces false positives on pure scene images (no character) — this is expected and harmless. It only matters on composited candidates.
 
@@ -140,8 +141,8 @@ Full pricing: `docs/prodigi-jigsaws-gb-pricing.csv`
 
 | Model | Replicate ID | Cost | Used For |
 |-------|-------------|------|----------|
-| Remove BG | `lucataco/remove-bg` | $0.01 | Step 1: background removal |
-| Kontext Max | `black-forest-labs/flux-kontext-max` | $0.08 | Steps 2, 3, 5 (compositing) |
+| Remove BG | `recraft-ai/recraft-remove-background` | $0.01 | Step 1: background removal (default; lucataco fallback via env var) |
+| Kontext Max | `black-forest-labs/flux-kontext-max` | $0.08 | Steps 2 (normalise), 3, 4, 6 (compositing) |
 | Kontext Pro | `black-forest-labs/flux-kontext-pro` | $0.04 | Available, not default |
 | FLUX 2 Pro | `black-forest-labs/flux-2-pro` | ~$0.08 | Step 4: scene generation (text-only) |
 | Real-ESRGAN | `nightmareai/real-esrgan` | $0.002 | Step 5: upscale after user picks |
@@ -169,18 +170,26 @@ Full pricing: `docs/prodigi-jigsaws-gb-pricing.csv`
 | Print export format | JPG not PNG, sRGB, quality=95, subsampling=0 | Prodigi prefers JPG; 4:4:4 chroma for max print fidelity | 2026-04-06 |
 | Puzzle size in wizard | 252pc default, 110pc option | 252pc is native 4:3 (no crop), better margin, hero product | 2026-04-06 |
 | Regenerate buttons | Steps 3 + 4 have "Regenerate" that clears downstream + new seed | Needed before volume; no way to retry without starting over | 2026-04-06 |
+| Recraft for BG removal | `recraft-ai/recraft-remove-background` default, lucataco fallback | Better edge quality especially on hair; same cost | 2026-04-07 |
+| Portrait normalisation step | New step 2b: flux-kontext-max, front-facing portrait before character gen | Removes dependency on perfect input photo; any angle → standardised portrait | 2026-04-07 |
+| No text attribute injection | Subject = "the person in the input image", gender = "person" always | Text descriptions (ethnicity, hair, age) make outputs look generic vs preserving actual likeness | 2026-04-07 |
+| IDENTITY LOCK in costume prompts | Full facial feature lock (face shape, eye colour, nose, mouth, proportions) | Previous wording only covered hair/skin — face shape still drifted during costume step | 2026-04-07 |
+| Shadow presence metric | 13th quality metric, 3% weight, LAB local-contrast in foot zone | Detects missing ground shadows which make character look composited/pasted | 2026-04-07 |
 
 ## Current Status
 
-- **Pipeline proven** — 5-step wizard working end-to-end, scores 93–97/100
+- **Pipeline proven** — 6-step wizard working end-to-end, scores 93–97/100
+- **Portrait normalisation** — new step 2b standardises any input photo to front-facing before character gen (`NORMALIZE_PORTRAIT=0` to skip)
+- **Recraft BG removal** — switched to `recraft-ai/recraft-remove-background` for better edge quality; lucataco fallback via `BG_REMOVAL_BACKEND=lucataco`
+- **No attribute injection** — prompts no longer inject detected age/gender/ethnicity/hair/skin; AI works from image directly
+- **IDENTITY LOCK** — costume prompts now have full identity lock (face shape, eye colour, nose, mouth, proportions, not just hair/skin)
+- **Shadow scoring** — 13th quality metric (`shadow_presence`) checks for ground shadow in composited images
+- **Prompt CLI** — `scripts/print_prompts.py <JOB_ID>` prints all resolved prompts for any job
 - **Wardrobe picker** — Step 4 has interactive outfit choice UI (Adventurer + Wizard)
 - **Regenerate buttons** — Steps 3 + 4 have "Regenerate" (clears downstream, new random seed)
-- **Scene prompt v3** — landscape 4:3, wide panoramic, character left-of-centre composition
-- **Hair preservation** — costume prompts now inject `{subject}` via `get_costume_prompt()`
 - **Prodigi ready** — `step_export_for_print()` outputs print-ready JPGs automatically after upscale; see `docs/PRODIGI.md`
-- **Print-ready downloads** — Step 5 completion shows puzzle surface + tin lid, two download buttons, fulfillment instructions
 - **Deployed** — live on Render (`main` branch auto-deploys)
-- **Next:** Order a physical sample via Prodigi dashboard to verify print quality
+- **Next:** Test full pipeline with new normalisation step; order a physical sample via Prodigi dashboard
 
 ## Known Issues
 

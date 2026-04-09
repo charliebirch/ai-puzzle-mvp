@@ -70,7 +70,7 @@
         </div>
 
         <div id="describe-section">
-            <label><strong>Describe the Person</strong></label>
+            <label><strong>Detected Attributes</strong> <small style="font-weight:400; color: var(--pico-muted-color);">— auto-filled from photo, for your reference only</small></label>
 
             <div class="grid">
                 <div>
@@ -212,7 +212,7 @@
         </fieldset>
 
         <p class="cost-estimate">
-            <strong>Estimated cost:</strong> ~$0.49 for full pipeline (background removal, character, costume, scene, 3 composite candidates + upscale)
+            <strong>Estimated cost:</strong> ~$0.57 for full pipeline (background removal + portrait normalisation, character, costume, scene, 3 composite candidates + upscale)
         </p>
 
         <button type="submit" id="submit-btn" disabled>Start Puzzle Creation</button>
@@ -456,12 +456,12 @@
                 if (grade === 'ok' && issues.length) {
                     showBanner('loading',
                         '&#9888; <strong>Photo accepted with minor notes — see preview for details.</strong> ' +
-                        'Please also check the detected fields below and correct anything that looks wrong.'
+                        'Detected attributes shown below for reference (not used in generation).'
                     );
                 } else {
                     showBanner('success',
-                        '&#10003; <strong>Photo looks great! We\'ve detected the details below — please check each one and correct anything that looks wrong before continuing.</strong> ' +
-                        'Fields with a green border were auto-filled.'
+                        '&#10003; <strong>Photo looks great!</strong> ' +
+                        'Detected attributes shown below for reference — the AI works directly from the image, not these fields.'
                     );
                 }
             })

@@ -5,6 +5,10 @@ Removes the background from a photo and replaces it with white,
 so the AI model can focus entirely on the person.
 
 Cost: ~$0.01/run on Replicate.
+
+Backend is controlled by the BG_REMOVAL_BACKEND env var:
+  recraft   (default) — recraft-ai/recraft-remove-background, superior edge quality
+  lucataco  (fallback) — lucataco/remove-bg, proven BRIA RMBG 2.0
 """
 
 import os
@@ -18,9 +22,27 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# BRIA RMBG 2.0 — fast, high-quality background removal
-REPLICATE_MODEL = "lucataco/remove-bg:95fcc2a26d3899cd6c2691c900465aaeff466285a65c14638cc5f36f34befaf1"
-COST_PER_RUN = 0.01
+# Backend dispatch — set BG_REMOVAL_BACKEND env var to switch
+_MODELS = {
+    "recraft": {
+        "id": "recraft-ai/recraft-remove-background",
+        "cost": 0.01,
+        "input_key": "image",
+    },
+    "lucataco": {
+        "id": "lucataco/remove-bg:95fcc2a26d3899cd6c2691c900465aaeff466285a65c14638cc5f36f34befaf1",
+        "cost": 0.01,
+        "input_key": "image",
+    },
+}
+
+_BACKEND = os.getenv("BG_REMOVAL_BACKEND", "recraft")
+if _BACKEND not in _MODELS:
+    raise ValueError(f"Unknown BG_REMOVAL_BACKEND '{_BACKEND}'. Choose: {list(_MODELS)}")
+
+REPLICATE_MODEL = _MODELS[_BACKEND]["id"]
+COST_PER_RUN = _MODELS[_BACKEND]["cost"]
+_INPUT_KEY = _MODELS[_BACKEND]["input_key"]
 
 
 def _extract_url(output) -> str:
@@ -44,12 +66,12 @@ def remove_background(input_path: str, output_path: str) -> dict:
     Returns:
         dict with status, cost, and output path
     """
-    print(f"Removing background from {input_path}...")
+    print(f"Removing background ({_BACKEND}) from {input_path}...")
 
     with open(input_path, "rb") as f:
         output = replicate.run(
             REPLICATE_MODEL,
-            input={"image": f},
+            input={_INPUT_KEY: f},
         )
 
     image_url = _extract_url(output)

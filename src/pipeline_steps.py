@@ -1,17 +1,18 @@
 """
-Pipeline step functions for the 5-step puzzle generation workflow.
+Pipeline step functions for the 6-step puzzle generation workflow.
 
 Each function handles one step, takes simple arguments (paths, strings),
 and returns a result dict. No web framework dependencies.
 
 Steps:
 1. Validate & prepare photo
-2. Remove background ($0.01)
-3. Generate Pixar character ($0.08)
-4. Add themed costume ($0.08)
-5. Generate scene + 3 compositing methods ($0.32)
+2. Remove background — recraft-ai/recraft-remove-background ($0.01)
+2b. Normalise portrait — flux-kontext-max ($0.08, skippable via NORMALIZE_PORTRAIT=0)
+3. Generate Pixar character — flux-kontext-max ($0.08)
+4. Add themed costume — flux-kontext-max ($0.08)
+5. Generate scene + 3× Method E compositing — flux-2-pro + flux-kontext-max ($0.32)
 
-Total cost: ~$0.49 per full run.
+Total cost: ~$0.57 per full run (steps 1–5 including normalisation).
 """
 
 import json
@@ -144,7 +145,8 @@ def step_validate_and_prepare(photo_path: str, order_dir: str) -> dict:
 def step_remove_background(input_prepared_path: str, order_dir: str) -> dict:
     """Step 2: Remove background and replace with white.
 
-    Uses lucataco/remove-bg on Replicate (~$0.01).
+    Uses recraft-ai/recraft-remove-background by default (~$0.01).
+    Backend is env-switchable via BG_REMOVAL_BACKEND=recraft|lucataco.
 
     Args:
         input_prepared_path: Path to the prepared input photo.
@@ -165,6 +167,81 @@ def step_remove_background(input_prepared_path: str, order_dir: str) -> dict:
         "cost": result["cost_estimate"],
         "elapsed_seconds": round(elapsed, 1),
         "size": result["size"],
+    }
+
+
+# Normalisation step prompt — module-level so it can be imported by CLI tools
+NORMALIZE_PROMPT = (
+    "Reframe this person as a clean front-facing portrait: looking directly at the camera, "
+    "shoulders and head visible, centred in the frame. "
+    "Preserve ALL appearance exactly — the same face shape, facial features, eye colour, "
+    "nose, mouth, skin tone, hair colour, hair texture, hairstyle, and age. "
+    "Do not alter any appearance attribute whatsoever. "
+    "Simply adjust the framing and angle so the face is fully front-facing and the person "
+    "is looking straight at the camera. Keep the white background. "
+    "Photorealistic portrait, clean white background, no other changes."
+)
+
+
+def step_normalize_portrait(
+    bg_removed_path: str,
+    order_dir: str,
+    seed: Optional[int] = None,
+) -> dict:
+    """Step 2b: Normalise portrait to front-facing, shoulders-up, looking at camera.
+
+    Takes the bg-removed photo (any angle/pose) and outputs a standardised
+    photorealistic portrait — same person, same appearance, just standardised
+    framing. This improves character generation quality for off-angle inputs.
+
+    Skippable via NORMALIZE_PORTRAIT=0 env var (useful for already-ideal inputs).
+
+    Cost: $0.08 (Kontext Max). Skipped cost: $0.00.
+
+    Args:
+        bg_removed_path: Path to bg-removed photo (white background).
+        order_dir: Path to the order output directory.
+        seed: Optional random seed for reproducibility.
+
+    Returns:
+        dict with: normalized (path), cost, elapsed_seconds, skipped.
+    """
+    import os as _os
+
+    if _os.getenv("NORMALIZE_PORTRAIT", "1") == "0":
+        print("  step_normalize_portrait: skipped (NORMALIZE_PORTRAIT=0)")
+        return {
+            "normalized": bg_removed_path,
+            "cost": 0.0,
+            "elapsed_seconds": 0.0,
+            "skipped": True,
+        }
+
+    from backends.registry import get_backend
+
+    backend = get_backend("flux_kontext_max")
+    start = time.time()
+    gen_result = backend.generate(
+        prompt=NORMALIZE_PROMPT,
+        image_path=bg_removed_path,
+        style_settings={},
+        aspect_ratio="1:1",
+        seed=seed,
+    )
+    elapsed = time.time() - start
+
+    response = requests.get(gen_result.image_url, timeout=120)
+    response.raise_for_status()
+    img = Image.open(BytesIO(response.content))
+    output_path = str(Path(order_dir) / "normalized.png")
+    img.save(output_path)
+
+    print(f"  Portrait normalized: {img.size[0]}x{img.size[1]} -> {output_path}")
+    return {
+        "normalized": output_path,
+        "cost": gen_result.cost_estimate,
+        "elapsed_seconds": round(elapsed, 1),
+        "skipped": False,
     }
 
 

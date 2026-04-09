@@ -5,22 +5,42 @@
 <article>
     <h2>Step 4: Choose an Outfit ✨</h2>
 
+    <table class="pipeline-meta">
+        <tbody>
+            <tr>
+                <th>Model</th>
+                <td>Flux Kontext Max (<code>black-forest-labs/flux-kontext-max</code>)</td>
+                <td>$0.08</td>
+            </tr>
+            <tr>
+                <th>Input</th>
+                <td colspan="2">Pixar character from step 3</td>
+            </tr>
+            <tr>
+                <th>Output</th>
+                <td colspan="2">Character dressed in chosen outfit, identity preserved</td>
+            </tr>
+        </tbody>
+    </table>
+
     {% if step_data and step_data.status == "complete" %}
     {# ── COMPLETE ─────────────────────────────────────────────────── #}
     <div class="grid">
         <div>
-            <h4>Character</h4>
+            <h4>Input: Character</h4>
             <img src="/wizard/{{ job_id }}/image/character" alt="Character" class="preview-img">
+            <small>From step 3</small>
         </div>
         <div>
-            <h4>In Costume</h4>
+            <h4>Output: In Costume</h4>
             <img src="/wizard/{{ job_id }}/image/costumed" alt="Costumed character" class="preview-img">
+            <small>Flux Kontext Max — $0.08</small>
         </div>
     </div>
-    <p class="cost-estimate">Outfit applied in {{ step_data.elapsed_seconds }}s · cost ${{ "%.2f"|format(step_data.cost) }}</p>
+    <p class="cost-estimate">Outfit applied in {{ step_data.elapsed_seconds }}s &mdash; cost: <strong>${{ "%.2f"|format(step_data.cost) }}</strong></p>
 
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
-        <a href="/wizard/{{ job_id }}/step/5" role="button">Continue to Scene &amp; Compositing →</a>
+        <a href="/wizard/{{ job_id }}/step/5" role="button">Continue to Scene &amp; Compositing &rarr;</a>
         <form action="/wizard/{{ job_id }}/step/4/regenerate" method="post" style="margin:0;">
             <button type="submit" class="secondary outline">Regenerate costume</button>
         </form>
@@ -45,7 +65,7 @@
 
     <div class="grid">
         <div>
-            <h4>Character</h4>
+            <h4>Input: Character</h4>
             <img src="/wizard/{{ job_id }}/image/character" alt="Character" class="preview-img">
         </div>
         <div>

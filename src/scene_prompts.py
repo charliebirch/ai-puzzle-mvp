@@ -85,9 +85,11 @@ SCENE_CONFIGS = {
             "Take this animated character and dress them in a whimsical fantasy adventurer "
             "outfit — leather vest, belt with pouches, a small cape, and boots. "
             "This character is {subject}. "
-            "Keep their face, skin tone, hair colour, hair texture, and hairstyle exactly "
-            "as they are — do not alter the hair in any way. Keep glasses and expression "
-            "exactly the same. Keep the white background. Same framing and pose."
+            "IDENTITY LOCK — preserve ALL of the following exactly as they appear in the input image: "
+            "face shape, facial proportions, eye colour, nose shape, mouth shape, skin tone, "
+            "hair colour, hair texture, and hairstyle. Every facial feature must remain identical. "
+            "Keep glasses and expression exactly the same. Do not alter any facial attribute. "
+            "Keep the white background. Same framing and pose."
         ),
 
         # Selectable outfit choices shown in the wizard wardrobe picker.
@@ -104,9 +106,11 @@ SCENE_CONFIGS = {
                     "outfit — a worn leather vest over a linen shirt, a wide belt with pouches and "
                     "a small dagger, a dramatic swirling cape, and sturdy adventurer boots. "
                     "This character is {subject}. "
-                    "Keep their face, skin tone, hair colour, hair texture, and hairstyle exactly "
-                    "as they are — do not alter the hair in any way. Keep glasses and expression "
-                    "exactly the same. Keep the white background. Same framing and pose."
+                    "IDENTITY LOCK — preserve ALL of the following exactly as they appear in the input image: "
+                    "face shape, facial proportions, eye colour, nose shape, mouth shape, skin tone, "
+                    "hair colour, hair texture, and hairstyle. Every facial feature must remain identical. "
+                    "Keep glasses and expression exactly the same. Do not alter any facial attribute. "
+                    "Keep the white background. Same framing and pose."
                 ),
             },
             {
@@ -120,10 +124,12 @@ SCENE_CONFIGS = {
                     "pointed wizard hat with a curled brim, and they are holding a gnarled wooden "
                     "staff with a glowing blue gem at the top. "
                     "This character is {subject}. "
-                    "Keep their face, skin tone, hair colour, hair texture, and hairstyle exactly "
-                    "as they are — the wizard hat sits on top of their existing hair, it does not "
-                    "replace or hide it. Do not alter the hair in any way. Keep glasses and "
-                    "expression exactly the same. Keep the white background. Same framing and pose."
+                    "IDENTITY LOCK — preserve ALL of the following exactly as they appear in the input image: "
+                    "face shape, facial proportions, eye colour, nose shape, mouth shape, skin tone, "
+                    "hair colour, hair texture, and hairstyle. Every facial feature must remain identical. "
+                    "The wizard hat sits on top of their existing hair, it does not replace or hide it. "
+                    "Keep glasses and expression exactly the same. Do not alter any facial attribute. "
+                    "Keep the white background. Same framing and pose."
                 ),
             },
         ],

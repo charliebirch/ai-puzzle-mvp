@@ -1,3 +1,32 @@
+/* Pipeline metadata table shown at the top of each wizard step */
+table.pipeline-meta {
+    font-size: 0.8rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+table.pipeline-meta th {
+    width: 5rem;
+    color: var(--pico-muted-color);
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 0.3rem 0.75rem;
+}
+table.pipeline-meta td {
+    padding: 0.3rem 0.75rem;
+}
+table.pipeline-meta td:last-child {
+    text-align: right;
+    color: var(--pico-muted-color);
+    white-space: nowrap;
+}
+table.pipeline-meta code {
+    font-size: 0.75rem;
+    background: none;
+    padding: 0;
+}
+
 .preview-img {
     max-width: 100%;
     height: auto;

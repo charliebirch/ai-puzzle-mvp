@@ -1,10 +1,32 @@
 {% extends "wizard_base.html" %}
-{% block title %}Step 2: Background Removal — {{ job_id }}{% endblock %}
+{% block title %}Step 2: Background Removal & Normalisation — {{ job_id }}{% endblock %}
 
 {% block content %}
 <article>
-    <h2>Step 2: Background Removal</h2>
-    <p>Removing the background so the AI can focus on the person. Cost: <strong>$0.01</strong></p>
+    <h2>Step 2: Background Removal &amp; Portrait Normalisation</h2>
+
+    <table class="pipeline-meta">
+        <tbody>
+            <tr>
+                <th>BG removal</th>
+                <td>Recraft (<code>recraft-ai/recraft-remove-background</code>)</td>
+                <td>$0.01</td>
+            </tr>
+            <tr>
+                <th>Normalise</th>
+                <td>Flux Kontext Max (<code>black-forest-labs/flux-kontext-max</code>)</td>
+                <td>$0.08</td>
+            </tr>
+            <tr>
+                <th>Input</th>
+                <td colspan="2">Uploaded photo</td>
+            </tr>
+            <tr>
+                <th>Output</th>
+                <td colspan="2">Normalised portrait — front-facing, shoulders up, white background</td>
+            </tr>
+        </tbody>
+    </table>
 
     {% set step1 = job.meta.steps["1"] if job.meta is defined and job.meta.steps is defined and job.meta.steps["1"] is defined else {} %}
     {% if step1.warnings %}
@@ -20,19 +42,26 @@
     {% endif %}
 
     {% if step_data and step_data.status == "complete" %}
-    <!-- Step complete — show before/after -->
-    <div class="grid">
+    <!-- Step complete — show all 3 stages -->
+    <div class="grid" style="grid-template-columns: repeat(3, 1fr);">
         <div>
-            <h4>Original</h4>
+            <h4>① Original</h4>
             <img src="/wizard/{{ job_id }}/image/input_prepared" alt="Original photo" class="preview-img">
+            <small>Uploaded photo</small>
         </div>
         <div>
-            <h4>Background Removed</h4>
+            <h4>② Background Removed</h4>
             <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
+            <small>Recraft — $0.01</small>
+        </div>
+        <div>
+            <h4>③ Normalised Portrait</h4>
+            <img src="/wizard/{{ job_id }}/image/normalized" alt="Normalised portrait" class="preview-img">
+            <small>Flux Kontext Max — $0.08 &rarr; feeds into step 3</small>
         </div>
     </div>
-    <p>Background removed in {{ step_data.elapsed_seconds }}s (cost: ${{ "%.2f"|format(step_data.cost) }})</p>
-    <a href="/wizard/{{ job_id }}/step/3" role="button">Continue to Character Generation</a>
+    <p>Completed in {{ step_data.elapsed_seconds }}s &mdash; total cost: <strong>${{ "%.2f"|format(step_data.cost) }}</strong></p>
+    <a href="/wizard/{{ job_id }}/step/3" role="button">Continue to Character Generation &rarr;</a>
 
     {% elif step_data and step_data.status == "error" %}
     <article class="error-box">
@@ -55,7 +84,7 @@
                  hx-trigger="load, every 3s"
                  hx-swap="innerHTML">
                 <article aria-busy="true">
-                    <p>Removing background... (10-15 seconds)</p>
+                    <p>Removing background, then normalising portrait... (30–45 seconds)</p>
                     <progress></progress>
                 </article>
             </div>

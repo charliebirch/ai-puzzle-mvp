@@ -2,181 +2,183 @@
 
 Exact models, prompts, and parameters for each step.
 
+**Total cost:** ~$0.57 per full run (steps 1–6).
+
 ---
 
 ## Step 1: Background Removal
 
-**Model:** `lucataco/remove-bg` on Replicate
-**Version:** `95fcc2a26d3899cd6c2691c900465aaeff466285a65c14638cc5f36f34befaf1`
+**Model:** `recraft-ai/recraft-remove-background` on Replicate (default)
+**Fallback:** `lucataco/remove-bg` — set `BG_REMOVAL_BACKEND=lucataco` env var
 **Cost:** ~$0.01
 **Code:** `src/remove_background.py`
 
 ```python
-output = replicate.run(REPLICATE_MODEL, input={"image": f})
+output = replicate.run(REPLICATE_MODEL, input={_INPUT_KEY: f})
 # Returns PNG with transparent background
 # Composite onto white: Image.alpha_composite(white_bg, fg).convert("RGB")
 ```
 
 **Input:** Customer photo (any format, any background)
-**Output:** Same photo with white background, RGB JPG
+**Output:** White-background RGB JPG (`bg_removed.jpg`)
 
 ---
 
-## Step 2: Character Generation
+## Step 2b: Portrait Normalisation
 
 **Model:** `black-forest-labs/flux-kontext-max` on Replicate
 **Cost:** ~$0.08
-**Code:** Uses `src/backends/flux_kontext_max.py` via registry
+**Code:** `src/pipeline_steps.py` → `step_normalize_portrait()`
+**Skip:** Set `NORMALIZE_PORTRAIT=0` env var to bypass (e.g. for already-ideal photos)
 
-**Input:** White-background photo from Step 1
-**Output:** Pixar-style character on white background (~1024px)
+**Purpose:** Standardises any input photo to a front-facing, shoulders-and-above,
+looking-at-camera portrait before the character generation step. Removes dependency
+on the customer sending a perfectly framed photo.
 
-**Prompt template:**
-```
-Transform this photo into a Pixar-like 3D animated character. Keep the person's
-face shape, skin tone, hair color, and hairstyle exactly as they are. Gentle
-Pixar-style cartoon features — keep natural facial proportions and eye size.
-{gender_hint}. A warm, natural smile. Soft cartoon shading, smooth skin.
-Do not enlarge the eyes. Keep the same pose and framing. Plain white background.
+**Prompt:** See `NORMALIZE_PROMPT` constant in `pipeline_steps.py`
 
-Composition:
-- Bust portrait, shoulders up
-- Slight 3/4 angle, centred
-- Plain white background
-- Clean silhouette edges suitable for compositing
-- Simple {clothing_description} without logos or text emphasis
-```
-
-**Gender hints:**
-- Female: `Soft feminine features, delicate jawline`
-- Male: `Natural masculine features`
+**Input:** White-background photo from step 1 (`bg_removed.jpg`)
+**Output:** Normalised front-facing photorealistic portrait (`normalized.png`)
 
 ---
 
-## Step 3: Costume
+## Step 3: Character Generation
 
-**Model:** `black-forest-labs/flux-kontext-max`
+**Model:** `black-forest-labs/flux-kontext-max` on Replicate
 **Cost:** ~$0.08
+**Code:** `src/pipeline_steps.py` → `step_generate_character()`
+**Prompt builder:** `src/scene_prompts.py` → `get_character_prompt(scene_id, subject, gender)`
 
-**Input:** Character on white background from Step 2
-**Output:** Same character in themed outfit, still on white background
+**Input:** Normalised portrait from step 2b (face-cropped via `_crop_to_face()`)
+**Output:** Pixar-style full-body animated character on white background (`character.png`, ~1024px)
 
-**Prompt template (village example):**
-```
-Take this animated character and dress them in a whimsical fantasy adventurer
-outfit — leather vest, belt with pouches, a small cape, and boots. Keep their
-face, skin tone, hair, glasses, and expression exactly the same. Keep the white
-background. Same framing and pose.
-```
+**Identity approach:** AI works directly from the input image. No text attributes
+(age, ethnicity, hair colour, skin tone) are injected into the prompt — this preserves
+the person's actual likeness rather than generating a generic description-based character.
 
-**Costume ideas per scene:**
-- Village: fantasy adventurer (leather vest, cape, boots, belt)
-- Space: colourful cartoon astronaut suit with clear helmet visor
-- Underwater: playful diving suit or mermaid costume
+**Subject:** Always `"the person in the input image"`
+**Gender hint:** Always `""` (empty — `gender="person"`)
+
+**Prompt structure (see `scene_prompts.py` for full text):**
+- ANATOMY — correct human anatomy, ignore background artifacts
+- PROPORTIONS — Pixar cartoon proportions (oversized head, 4 heads tall, slim torso)
+- IDENTITY — preserve skin tone, ethnicity, hair, face shape from the image
+- FACE STYLE — fully Pixar-stylized, NOT photorealistic CGI
+- POSE — full figure, whimsical joyful mid-motion pose, Duchenne smile
+- STYLE — Pixar 3D, pure white background, no clothing copying
 
 ---
 
-## Step 4: Scene Generation
+## Step 4: Costume
 
-**Model:** `black-forest-labs/flux-kontext-max`
+**Model:** `black-forest-labs/flux-kontext-max` on Replicate
 **Cost:** ~$0.08
+**Code:** `src/pipeline_steps.py` → `step_costume()`
+**Prompt builder:** `src/scene_prompts.py` → `get_costume_prompt(scene_id, subject, outfit_id)`
 
-**Input:** Text prompt only (no input image, or scene as style reference)
-**Output:** Empty detailed scene with no people (~1024px)
+**Input:** Character on white background from step 3 (`character.png`)
+**Output:** Same character in chosen outfit, white background (`costumed.png`)
 
-**Prompt template (village example):**
+**Available outfits (village scene):**
+- `adventurer` — worn leather vest, wide belt with pouches, swirling cape, boots
+- `wizard` — deep-purple robes with gold stars, pointed hat, glowing staff
+
+**Identity preservation:** All costume prompts include an IDENTITY LOCK block:
 ```
-A vibrant magical storybook village scene with no people or characters.
-Ultra-detailed Pixar 3D rendering. Cobblestone streets winding between colorful
-crooked houses with flower boxes and thatched roofs. Floating lanterns, a stone
-bridge over a sparkling stream, a bakery with a striped awning, a clock tower,
-market stalls with colorful fruit. Foreground: scattered leaves, potted
-sunflowers, a sleeping cat, a red postbox, a wheelbarrow of flowers. Background:
-rolling green hills, a windmill, fluffy clouds, a hot air balloon, birds flying,
-a rainbow. Every inch filled with color and detail. Warm golden-hour lighting,
-rich saturated colors. No people, no characters, empty scene.
+IDENTITY LOCK — preserve ALL of the following exactly as they appear in the input image:
+face shape, facial proportions, eye colour, nose shape, mouth shape, skin tone,
+hair colour, hair texture, and hairstyle. Every facial feature must remain identical.
 ```
 
 ---
 
-## Step 5: Compositing (3 Methods)
+## Step 5: Scene Generation
 
-### Method E: Kontext Max single-image blend
-
-**Model:** `black-forest-labs/flux-kontext-max`
+**Model:** `black-forest-labs/flux-2-pro` on Replicate (text-only — no input image)
 **Cost:** ~$0.08
-**Output:** ~1024x1024
+**Code:** `src/pipeline_steps.py` → `step_composite()` (generates scene internally)
+**Prompt:** `src/scene_prompts.py` → `scene["scene_prompt"]`
 
-1. PIL composite: paste costumed character onto scene (remove white bg via numpy mask, feather edges)
-2. Send composite as single image to Kontext Max
+**Why flux-2-pro not flux-kontext-max:** Kontext Max errors on the white placeholder
+input that was previously used for scene gen. Flux 2 Pro generates from text alone
+and produces better panoramic scenes.
 
-**Prompt:**
-```
-Make this image look like a single seamless Pixar 3D rendered scene. The animated
-character should blend perfectly into the village — match the warm golden-hour
-lighting, add natural shadows, smooth all edges. Keep everything exactly as it is,
-just make it look unified and natural. Do not change the character or the village layout.
-```
+**Input:** Text prompt only
+**Output:** Empty detailed village scene, no people, 4:3 landscape (`scene.png`)
 
-### Method K: FLUX 2 Pro two-image
-
-**Model:** `black-forest-labs/flux-2-pro`
-**Cost:** ~$0.08
-**Output:** ~2000x2000
-
-Send costumed character + scene as two `input_images`.
-
-**Parameters:**
-```python
-replicate.run('black-forest-labs/flux-2-pro', input={
-    'prompt': prompt,
-    'input_images': [character_file, scene_file],
-    'resolution': '4 MP',
-    'aspect_ratio': '1:1',
-    'output_format': 'png',
-    'output_quality': 100,
-    'safety_tolerance': 5,
-})
-```
-
-**Prompt:**
-```
-Place the animated Pixar character from the first image seamlessly into the
-magical village scene from the second image. The character should be standing on
-the cobblestone path in the centre of the village, taking up about 40% of the
-image height. Match the warm golden-hour lighting of the scene onto the character.
-Add natural ground shadows beneath their feet. The final image should look like a
-single unified Pixar 3D rendered scene — no visible compositing artifacts,
-seamless edges, consistent lighting throughout. Keep the character exactly as they
-are — same face, glasses, beard, hair, costume.
-```
-
-### Method Q: FLUX 2 Pro with distance language
-
-Same as Method K but with distance cue in prompt:
-
-**Prompt (key difference bolded):**
-```
-Place the animated Pixar character from the first image seamlessly into the
-magical village scene from the second image. The character should be standing
-**further down the cobblestone path in the midground of the scene, appearing at
-a natural distance as if they are walking through the village**. Match the warm
-golden-hour lighting...
-```
+**Prompt structure:**
+- FOREGROUND — cobblestone path, scattered objects, wheelbarrow, barrels
+- MIDGROUND — colourful houses, bakery, clock tower, market stalls, stream
+- BACKGROUND — multi-colour sky (cornflower blue + lavender + coral), windmill, hot air balloon, rainbow
+- CORNER DETAIL — named objects in every corner (critical for puzzle assembly)
+- NO TEXT rule — explicit ban on all text/lettering except clock Roman numerals
 
 ---
 
-## Quality Validation
+## Step 6: Compositing + Upscale
 
-After compositing, run the puzzle scorer:
+**Method E only** (Methods K and Q archived — Method E gives best seamlessness)
 
-```python
-from quality.puzzle_scorer import score_puzzle_quality
-result = score_puzzle_quality('path/to/composite.png', 500)
-print(f'{result.composite}/100 — {result.grade.value}')
-```
+### Method E: PIL composite → Kontext Max blend
 
-**Pass:** >= 65. **Target:** 80+. **Best achieved:** 95.3/100.
+**Model:** `black-forest-labs/flux-kontext-max` × 3 seeds
+**Cost:** ~$0.24 (3 × $0.08)
+**Code:** `src/pipeline_steps.py` → `step_composite()`, `src/composite_pil.py`
+
+1. PIL composite: paste costumed character onto scene (remove white bg via numpy mask, feather edges, gradient fade)
+2. Send composite as single image to Kontext Max with 3 different seeds
+3. Quality-score all 3 candidates → display to user for pick
+
+**Prompt:** `scene["composite_E_prompt"]` — instructs model to: seamlessly blend character
+into scene, match golden-hour lighting, add ground shadow, preserve all scene detail
+(cobblestones, corners, sky), fill ground with cobblestone texture under character feet.
+
+### Upscale
+
+**Model:** `nightmareai/real-esrgan` (general model, `anime=False`)
+**Cost:** ~$0.002
+**Code:** `src/pipeline_steps.py` → `step_upscale_final()`
+
+Upscales chosen candidate 4× to ~4096px+ for print quality.
+
+### Print Export
+
+**Code:** `src/pipeline_steps.py` → `step_export_for_print()`
+**Runs automatically** after upscale.
+
+Outputs:
+- `puzzle_surface.jpg` — sRGB JPG, quality=95, 4:4:4 subsampling, exact Prodigi dimensions
+- `tin_lid.jpg` — 869×674px, same format
+
+| Size | Pixels | Physical |
+|------|--------|----------|
+| 252pc | 4429×3366px | 375×285mm |
+| 110pc | 2953×2362px | 250×200mm |
+
+---
+
+## Quality Scoring
+
+**Code:** `src/quality/puzzle_scorer.py`
+**Function:** `score_puzzle_quality(image_path, puzzle_pieces, source_path=None)`
+
+13 metrics, 0–100 composite score. Grades: PASS ≥65, WARNING 40–64, FAIL <40, HARD_FAIL (any hard fail trigger).
+
+| Metric | Weight | Purpose |
+|--------|--------|---------|
+| flat_region_pct | 20% | Detect large flat areas where pieces look identical |
+| color_entropy | 12% | Colour distribution richness |
+| edge_density | 12% | Amount of detail boundaries |
+| corner_detail_ratio | 12% | Detail in corners vs centre (puzzle assembly) |
+| grid_uniformity | 10% | Even distribution of detail across image |
+| dominant_color_pct | 8% | Single colour domination |
+| gradient_magnitude | 6% | Surface texture transitions |
+| hue_diversity | 6% | Number of distinct colours |
+| laplacian_variance | 5% | Global sharpness |
+| gabor_texture_energy | 3% | Variety of surface patterns |
+| subject_dominance | 3% | Character leaves room for scene |
+| shadow_presence | 3% | Natural ground shadow under character |
+| white_patch | 0% | Hard fail only — detects unblended composite background |
 
 ---
 
@@ -184,13 +186,18 @@ print(f'{result.composite}/100 — {result.grade.value}')
 
 ```
 orders/{order_id}/
-  input_prepared.png     # Original photo, EXIF-corrected
-  bg_removed.jpg         # White background version
+  input_prepared.png     # Original photo, EXIF-corrected, max 1500px
+  bg_removed.jpg         # White background version (Recraft output)
+  normalized.png         # Front-facing normalised portrait (Kontext Max)
+  character_input.png    # Face-cropped version sent to character gen
   character.png          # Pixar character on white
   costumed.png           # Character in themed outfit
   scene.png              # Empty scene (no people)
-  composite_E.png        # Method E result (1024px)
-  composite_K.png        # Method K result (2000px)
-  composite_Q.png        # Method Q result (2000px)
-  manifest.json          # Full metadata, costs, timings
+  candidate_1.png        # Method E composite, seed 1
+  candidate_2.png        # Method E composite, seed 2
+  candidate_3.png        # Method E composite, seed 3
+  final.png              # Upscaled chosen candidate (4×, ~4096px)
+  puzzle_surface.jpg     # Print-ready puzzle surface (Prodigi dimensions)
+  tin_lid.jpg            # Print-ready tin lid (869×674px)
+  manifest.json          # Full metadata, costs, timings, prompts
 ```

@@ -4,23 +4,44 @@
 {% block content %}
 <article>
     <h2>Step 3: Character Generation</h2>
-    <p>Transforming the photo into a Pixar-style animated character. Cost: <strong>$0.08</strong></p>
+
+    <table class="pipeline-meta">
+        <tbody>
+            <tr>
+                <th>Model</th>
+                <td>Flux Kontext Max (<code>black-forest-labs/flux-kontext-max</code>)</td>
+                <td>$0.08</td>
+            </tr>
+            <tr>
+                <th>Input</th>
+                <td colspan="2">Normalised portrait from step 2</td>
+            </tr>
+            <tr>
+                <th>Output</th>
+                <td colspan="2">Pixar-style animated character, full body, white background</td>
+            </tr>
+        </tbody>
+    </table>
+
+    {% set step2 = job.meta.steps["2"] if job.meta is defined and job.meta.steps is defined and job.meta.steps["2"] is defined else {} %}
 
     {% if step_data and step_data.status == "complete" %}
-    <!-- Step complete — show before/after -->
+    <!-- Step complete — show input → output -->
     <div class="grid">
         <div>
-            <h4>Background Removed</h4>
-            <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
-            <small>Original photo, background removed</small>
+            <h4>Input: Normalised Portrait</h4>
+            <img src="/wizard/{{ job_id }}/image/normalized" alt="Normalised portrait"
+                 class="preview-img"
+                 onerror="this.src='/wizard/{{ job_id }}/image/bg_removed'">
+            <small>From step 2 &rarr; face crop sent to model</small>
         </div>
         <div>
-            <h4>Pixar Character</h4>
+            <h4>Output: Pixar Character</h4>
             <img src="/wizard/{{ job_id }}/image/character" alt="Generated character" class="preview-img">
-            <small>Generated with hero pose</small>
+            <small>Flux Kontext Max — $0.08</small>
         </div>
     </div>
-    <p>Character generated in {{ step_data.elapsed_seconds }}s &mdash; cost: <strong>${{ "%.2f"|format(step_data.cost) }}</strong></p>
+    <p>Generated in {{ step_data.elapsed_seconds }}s &mdash; cost: <strong>${{ "%.2f"|format(step_data.cost) }}</strong></p>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
         <a href="/wizard/{{ job_id }}/step/4" role="button">Continue to Costume &rarr;</a>
         <form action="/wizard/{{ job_id }}/step/3/regenerate" method="post" style="margin:0;">
@@ -38,8 +59,10 @@
     {% else %}
     <div class="grid">
         <div>
-            <h4>Background Removed</h4>
-            <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
+            <h4>Input: Normalised Portrait</h4>
+            <img src="/wizard/{{ job_id }}/image/normalized" alt="Normalised portrait"
+                 class="preview-img"
+                 onerror="this.src='/wizard/{{ job_id }}/image/bg_removed'">
         </div>
         <div>
             <h4>Generating character...</h4>

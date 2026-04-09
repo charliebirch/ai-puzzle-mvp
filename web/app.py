@@ -1,13 +1,14 @@
 """
 FastAPI web interface for AI Puzzle MVP.
 
-Step-by-step wizard for the 5-step puzzle generation pipeline:
-1. Upload & describe person
-2. Background removal ($0.01)
+Step-by-step wizard for the pipeline:
+1. Upload photo
+2. Background removal ($0.01) + portrait normalisation ($0.08)
 3. Character generation ($0.08)
 4. Costume ($0.08)
-5. Scene + 3 compositing methods ($0.32)
+5. Scene + 3× Method E compositing + upscale (~$0.33)
 
+Total: ~$0.57 per run.
 Run: python3 -m uvicorn web.app:app --reload --port 8000
 """
 
@@ -118,6 +119,7 @@ def _run_wizard_step(job_id: str, step: int):
     try:
         from pipeline_steps import (
             step_remove_background,
+            step_normalize_portrait,
             step_generate_character,
             step_costume,
             step_composite,
@@ -128,12 +130,23 @@ def _run_wizard_step(job_id: str, step: int):
         if step == 2:
             input_path = steps["1"]["input_prepared"]
             result = step_remove_background(input_path, str(order_dir))
+            # Normalise portrait to front-facing before character generation.
+            # Skippable via NORMALIZE_PORTRAIT=0 env var.
+            norm_result = step_normalize_portrait(
+                bg_removed_path=result["bg_removed"],
+                order_dir=str(order_dir),
+                seed=meta.get("seed"),
+            )
+            result["normalized"] = norm_result["normalized"]
+            result["cost"] = result.get("cost", 0) + norm_result["cost"]
 
         elif step == 3:
-            bg_removed = steps["2"]["bg_removed"]
+            step2_data = steps["2"]
+            # Use normalised portrait if available; fall back to bg_removed
+            character_input = step2_data.get("normalized") or step2_data["bg_removed"]
             result = step_generate_character(
-                bg_removed_path=bg_removed,
-                subject=meta.get("subject", "a smiling person"),
+                bg_removed_path=character_input,
+                subject=meta.get("subject", "the person in the input image"),
                 gender=meta.get("gender", "person"),
                 scene=meta.get("scene", "village"),
                 order_dir=str(order_dir),
@@ -268,10 +281,12 @@ async def wizard_start(
     request: Request,
     photo: UploadFile = File(...),
     consent: str = Form(...),
-    subject: str = Form(""),
     seed: Optional[str] = Form(""),
     puzzle_size: str = Form("252pc"),
-    # Structured subject fields
+    # The fields below are submitted by the upload form (auto-populated by
+    # detect_attributes for display) but are NOT used in generation —
+    # prompts rely on the input image directly rather than text descriptions.
+    subject: str = Form(""),
     age_range: str = Form(""),
     gender: str = Form(""),
     ethnicity: str = Form(""),
@@ -305,33 +320,12 @@ async def wizard_start(
     # Validate and prepare first (converts HEIC → JPEG if needed)
     result = step_validate_and_prepare(photo_path, str(order_dir))
 
-    # Auto-detect skin tone from the prepared image (not the HEIC original)
-    # Gracefully skips if OpenCV is not available (e.g. Render lightweight mode)
-    if not skin_tone:
-        try:
-            from subject_builder import detect_skin_tone
-            detected = detect_skin_tone(result["input_prepared"])
-            if detected:
-                skin_tone = detected
-                print(f"  Auto-detected skin tone: {skin_tone}")
-        except ImportError:
-            pass
-
-    # Build subject description
-    final_subject = subject.strip()
-    if not final_subject and (age_range or gender or hair_color or hair_style or ethnicity):
-        from subject_builder import build_subject_description
-        final_subject = build_subject_description(
-            age_range=age_range or "child",
-            gender=gender or "person",
-            ethnicity=ethnicity,
-            hair_color=hair_color,
-            hair_style=hair_style,
-            skin_tone=skin_tone,
-            extras=extras,
-        )
-    if not final_subject:
-        final_subject = "a smiling person"
+    # Subject description: use the input image as identity reference only.
+    # Detected attributes (age, gender, ethnicity, hair, skin) are shown in the UI
+    # dropdowns for information but NOT injected into generation prompts — text
+    # descriptions of appearance make outputs look generic rather than preserving
+    # the person's actual likeness from the image.
+    final_subject = "the person in the input image"
 
     # Parse seed
     parsed_seed = None
@@ -349,7 +343,7 @@ async def wizard_start(
     meta = {
         "scene": "village",
         "subject": final_subject,
-        "gender": gender or "person",
+        "gender": "person",
         "puzzle_size": puzzle_size,
         "current_step": 2,
         "steps": {
@@ -641,6 +635,7 @@ async def wizard_download_tin_lid(job_id: str):
 IMAGE_FILES = {
     "input_prepared": "input_prepared.png",
     "bg_removed": "bg_removed.jpg",
+    "normalized": "normalized.png",
     "character_input": "character_input.png",
     "character": "character.png",
     "costumed": "costumed.png",

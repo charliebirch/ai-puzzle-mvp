@@ -3,8 +3,35 @@
 
 {% block content %}
 <article>
-    <h2>Step 5: Scene & Final Composite</h2>
-    <p>Generating a detailed scene and compositing your character into it 3 ways. Cost: <strong>~$0.32</strong></p>
+    <h2>Step 5: Scene &amp; Final Composite</h2>
+
+    <table class="pipeline-meta">
+        <tbody>
+            <tr>
+                <th>Scene</th>
+                <td>FLUX 2 Pro (<code>black-forest-labs/flux-2-pro</code>) — text-only</td>
+                <td>~$0.08</td>
+            </tr>
+            <tr>
+                <th>Composite</th>
+                <td>Flux Kontext Max (<code>black-forest-labs/flux-kontext-max</code>) × 3 seeds</td>
+                <td>$0.24</td>
+            </tr>
+            <tr>
+                <th>Upscale</th>
+                <td>Real-ESRGAN 4× (<code>nightmareai/real-esrgan</code>)</td>
+                <td>~$0.002</td>
+            </tr>
+            <tr>
+                <th>Input</th>
+                <td colspan="2">Costumed character from step 4</td>
+            </tr>
+            <tr>
+                <th>Output</th>
+                <td colspan="2">3 composited candidates → upscaled final → print-ready JPGs</td>
+            </tr>
+        </tbody>
+    </table>
 
     {% if step_data and step_data.status == "complete" and step_data.final is defined %}
     <!-- User has picked — show print-ready result -->

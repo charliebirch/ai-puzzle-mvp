@@ -58,10 +58,11 @@ METRIC_WEIGHTS = {
     "dominant_color_pct": 0.08,
     "gradient_magnitude": 0.06,
     "hue_diversity": 0.06,
-    "laplacian_variance": 0.06,
-    "gabor_texture_energy": 0.04,
-    "subject_dominance": 0.04,
-    "white_patch": 0.00,  # hard fail only — failed composite detector
+    "laplacian_variance": 0.05,     # reduced from 0.06 to accommodate shadow metric
+    "gabor_texture_energy": 0.03,   # reduced from 0.04 to accommodate shadow metric
+    "subject_dominance": 0.03,      # reduced from 0.04 to accommodate shadow metric
+    "white_patch": 0.00,            # hard fail only — failed composite detector
+    "shadow_presence": 0.03,        # natural ground shadow under character feet
 }
 
 # Analysis resolution — all images resized to this long edge before scoring
@@ -619,6 +620,54 @@ def _score_white_patch(img_bgr: np.ndarray) -> MetricResult:
     )
 
 
+def _score_shadow_presence(img_bgr: np.ndarray) -> MetricResult:
+    """Metric 13: Detect natural ground shadow in the foot zone.
+
+    Checks the bottom 35% of the image for regions that are locally darker
+    than their neighbourhood — the signature of a cast shadow on a textured
+    ground. Uses LAB colourspace for perceptual accuracy.
+
+    Good compositing adds a soft elliptical shadow under the character's feet.
+    Missing shadow → score 0. Clear shadow (~1-8% of foot zone) → score 100.
+
+    No hard fail — a missing shadow is a quality issue, not a critical failure.
+    Pass: shadow_pct >= 1.0%, Fail: shadow_pct < 0.2%
+    """
+    h, w = img_bgr.shape[:2]
+
+    # Foot zone: bottom 35% of image
+    foot_start = int(h * 0.65)
+    foot_zone = img_bgr[foot_start:, :]
+
+    # LAB for perceptual brightness
+    lab = cv2.cvtColor(foot_zone, cv2.COLOR_BGR2LAB)
+    L = lab[:, :, 0].astype(np.float64)
+
+    # Local darkness: compare each pixel to its neighbourhood mean.
+    # Shadow pixels are meaningfully darker than their local surroundings.
+    ksize = max(15, w // 40) | 1  # odd kernel, ~25px on 1000px wide image
+    local_mean = cv2.blur(L, (ksize, ksize))
+    local_diff = local_mean - L  # positive = pixel is darker than neighbourhood
+
+    shadow_threshold = 12  # >12 LAB L-units darker than neighbourhood
+    shadow_pct = float(np.mean(local_diff > shadow_threshold) * 100)
+
+    # Score: 0 if no shadow, 100 if good shadow coverage (1–8% of foot zone)
+    if shadow_pct >= 1.0:
+        score = min(100.0, shadow_pct / 8.0 * 100)
+    elif shadow_pct >= 0.2:
+        score = (shadow_pct - 0.2) / 0.8 * 30  # ramp 0→30 for 0.2–1%
+    else:
+        score = 0.0
+
+    return MetricResult(
+        name="shadow_presence",
+        raw_value=round(shadow_pct, 2),
+        normalized_score=round(max(0, min(100, score)), 1),
+        weight=METRIC_WEIGHTS["shadow_presence"],
+    )
+
+
 def score_transformation(source_path: str, generated_path: str) -> float:
     """Score how much the generated image differs from the source photo.
 
@@ -723,6 +772,7 @@ def score_puzzle_quality(
         _score_gabor_texture_energy(gray),
         _score_subject_dominance(img_bgr),
         _score_white_patch(img_bgr),
+        _score_shadow_presence(img_bgr),
     ]
 
     # Build per_metric dict and collect hard fails
@@ -780,6 +830,7 @@ METRIC_DESCRIPTIONS = {
     "gabor_texture_energy": "Texture richness — variety of surface patterns",
     "subject_dominance": "Subject size — whether character leaves room for scene",
     "white_patch": "White patch — detects unblended composite background (failed seed)",
+    "shadow_presence": "Shadow — natural ground shadow under character feet",
 }
 
 
@@ -787,7 +838,7 @@ if __name__ == "__main__":
     import argparse
     import time
 
-    parser = argparse.ArgumentParser(description="Score puzzle image quality (11 metrics).")
+    parser = argparse.ArgumentParser(description="Score puzzle image quality (13 metrics).")
     parser.add_argument("image", help="Image to score")
     parser.add_argument("--pieces", type=int, default=1000, help="Target puzzle pieces")
     args = parser.parse_args()
