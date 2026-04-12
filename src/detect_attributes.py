@@ -9,11 +9,20 @@ Cost: ~$0.005–0.01 per photo (image tokens + small output).
 """
 
 import base64
+import io
 import os
 from pathlib import Path
 from typing import List
 
 from pydantic import BaseModel
+
+# Claude API hard limit: base64-encoded image payloads over 5 MB are
+# rejected server-side with a 400. Base64 expands raw bytes by ~4/3, so to
+# stay under 5 MB encoded we need raw bytes under ~3.75 MB. 3.6 MB for safety.
+_MAX_IMAGE_BYTES = 3_600_000
+# Long-edge pixel cap used when we need to downscale to fit under the byte
+# limit. 1024 matches the wizard's /api/detect-attributes resize.
+_RESIZE_LONG_EDGE = 1024
 
 
 # These must match the dropdown options in wizard_step1_upload.html exactly
@@ -42,6 +51,51 @@ class _DetectedAttributes(BaseModel):
     skin_tone: str
     quality_grade: str       # "good", "ok", or "poor"
     quality_issues: List[str]  # plain-English issues, empty list if none
+
+
+def _prepare_image_payload(image_path: str) -> tuple[bytes, str]:
+    """Load an image and return (bytes, media_type) safe for Claude's 5 MB limit.
+
+    If the file on disk is already under the byte ceiling, it is sent as-is
+    (preserving whatever format the caller supplied). If the file is over the
+    ceiling, we open it in Pillow, downscale the long edge to _RESIZE_LONG_EDGE,
+    and re-encode as JPEG quality 90 — which reliably fits inside the limit for
+    any typical portrait photo.
+
+    Raises FileNotFoundError / OSError on read failure. Callers should let
+    these propagate so a broken input surfaces loudly.
+    """
+    path = Path(image_path)
+    raw = path.read_bytes()
+
+    ext = path.suffix.lower()
+    media_type = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+    }.get(ext, "image/jpeg")
+
+    if len(raw) <= _MAX_IMAGE_BYTES:
+        return raw, media_type
+
+    # Over the limit — downscale via Pillow and re-encode as JPEG.
+    from PIL import Image as PILImage
+
+    img = PILImage.open(io.BytesIO(raw))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    if max(img.size) > _RESIZE_LONG_EDGE:
+        img.thumbnail((_RESIZE_LONG_EDGE, _RESIZE_LONG_EDGE), PILImage.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90, optimize=True)
+    resized = buf.getvalue()
+    print(
+        f"  detect_attributes: input was {len(raw):,} bytes "
+        f"(> {_MAX_IMAGE_BYTES:,} limit), resized to {len(resized):,} bytes"
+    )
+    return resized, "image/jpeg"
 
 
 def detect_attributes(image_path: str) -> dict:
@@ -75,16 +129,8 @@ def detect_attributes(image_path: str) -> dict:
         return {}
 
     try:
-        with open(image_path, "rb") as f:
-            image_data = base64.standard_b64encode(f.read()).decode("utf-8")
-
-        ext = Path(image_path).suffix.lower()
-        media_type = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".png": "image/png",
-            ".webp": "image/webp",
-        }.get(ext, "image/jpeg")
+        image_bytes, media_type = _prepare_image_payload(image_path)
+        image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
 
         client = anthropic.Anthropic(api_key=api_key)
 
