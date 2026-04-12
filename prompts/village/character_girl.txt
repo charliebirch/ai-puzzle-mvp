@@ -13,7 +13,7 @@ PROPORTIONS (critical — this is the Pixar cartoon look):
 
 IDENTITY (preserve exactly):
 - Skin tone, ethnicity, hair colour, hair texture, hairstyle, face shape
-- Soft feminine features, delicate jawline
+- Feminine features
 - Expressive cartoon eyes that feel alive, while faithfully preserving this person's actual ethnicity, skin tone, and facial structure
 - This person is {subject}
 
