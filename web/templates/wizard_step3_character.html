@@ -4,29 +4,33 @@
 {% block content %}
 <article>
     <h2>Step 3: Character Generation</h2>
-    <p>Transforming the photo into a Pixar-style animated character. Cost: <strong>$0.08</strong></p>
+    <p>Transforming the photo into a Pixar-style animated character. Cost: <strong>~$0.24</strong> (3 candidates)</p>
 
-    {% if step_data and step_data.status == "complete" %}
-    <!-- Step complete — show before/after -->
-    <div class="grid">
-        <div>
-            <h4>Background Removed</h4>
-            <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
-            <small>Original photo, background removed</small>
+    {% if step_data and step_data.status == "complete" and step_data.candidates is defined %}
+    <!-- Candidates ready — show all 3 for user to pick -->
+    <h3>Pick Your Favourite</h3>
+    <p>We generated 3 character versions. Pick the one that looks most like the person.</p>
+
+    <form action="/wizard/{{ job_id }}/pick-character" method="post">
+        <div class="candidate-grid">
+            {% for i in range(1, 4) %}
+            <label class="candidate-option">
+                <input type="radio" name="pick" value="{{ i }}" {% if i == 1 %}checked{% endif %} required>
+                <div class="candidate-card">
+                    <img src="/wizard/{{ job_id }}/image/character_{{ i }}" alt="Character {{ i }}" class="preview-img">
+                    <h4>Option {{ i }}</h4>
+                </div>
+            </label>
+            {% endfor %}
         </div>
-        <div>
-            <h4>Pixar Character</h4>
-            <img src="/wizard/{{ job_id }}/image/character" alt="Generated character" class="preview-img">
-            <small>Generated with hero pose</small>
-        </div>
-    </div>
-    <p>Character generated in {{ step_data.elapsed_seconds }}s &mdash; cost: <strong>${{ "%.2f"|format(step_data.cost) }}</strong></p>
-    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
-        <a href="/wizard/{{ job_id }}/step/4" role="button">Continue to Costume &rarr;</a>
-        <form action="/wizard/{{ job_id }}/step/3/regenerate" method="post" style="margin:0;">
-            <button type="submit" class="secondary outline">Regenerate character</button>
-        </form>
-    </div>
+
+        <button type="submit">Use This Character &rarr;</button>
+    </form>
+
+    <p>Generated in {{ step_data.elapsed_seconds }}s &mdash; cost: <strong>${{ "%.2f"|format(step_data.cost) }}</strong></p>
+    <form action="/wizard/{{ job_id }}/step/3/regenerate" method="post" style="margin-top:0.5rem;">
+        <button type="submit" class="secondary outline">Regenerate all 3</button>
+    </form>
 
     {% elif step_data and step_data.status == "error" %}
     <article class="error-box">
@@ -38,17 +42,19 @@
     {% else %}
     <div class="grid">
         <div>
-            <h4>Background Removed</h4>
-            <img src="/wizard/{{ job_id }}/image/bg_removed" alt="Background removed" class="preview-img">
+            <h4>Input Photo</h4>
+            <img src="/wizard/{{ job_id }}/image/normalized" alt="Normalised portrait"
+                 class="preview-img"
+                 onerror="this.src='/wizard/{{ job_id }}/image/bg_removed'">
         </div>
         <div>
-            <h4>Generating character...</h4>
+            <h4>Generating characters...</h4>
             <div id="poll-container"
                  hx-get="/wizard/{{ job_id }}/step/3/poll"
                  hx-trigger="load, every 3s"
                  hx-swap="innerHTML">
                 <article aria-busy="true">
-                    <p>Generating Pixar character... (15–30 seconds)</p>
+                    <p>Generating 3 Pixar character variants... (30–60 seconds)</p>
                     <progress></progress>
                 </article>
             </div>

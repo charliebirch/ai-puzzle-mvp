@@ -118,6 +118,7 @@ def _run_wizard_step(job_id: str, step: int):
     try:
         from pipeline_steps import (
             step_remove_background,
+            step_normalize_portrait,
             step_generate_character,
             step_costume,
             step_composite,
@@ -128,11 +129,23 @@ def _run_wizard_step(job_id: str, step: int):
         if step == 2:
             input_path = steps["1"]["input_prepared"]
             result = step_remove_background(input_path, str(order_dir))
+            # Normalise portrait to front-facing before character generation.
+            # Removes props, standardises framing, gives consistent input.
+            # Skippable via NORMALIZE_PORTRAIT=0 env var.
+            norm_result = step_normalize_portrait(
+                bg_removed_path=result["bg_removed"],
+                order_dir=str(order_dir),
+                seed=meta.get("seed"),
+            )
+            result["normalized"] = norm_result["normalized"]
+            result["cost"] = result.get("cost", 0) + norm_result["cost"]
 
         elif step == 3:
-            bg_removed = steps["2"]["bg_removed"]
+            step2_data = steps["2"]
+            # Use normalised portrait if available; fall back to bg_removed
+            character_input = step2_data.get("normalized") or step2_data["bg_removed"]
             result = step_generate_character(
-                bg_removed_path=bg_removed,
+                bg_removed_path=character_input,
                 subject=meta.get("subject", "the person in the input image"),
                 gender=meta.get("gender", "person"),
                 scene=meta.get("scene", "village"),
@@ -558,6 +571,36 @@ def _run_upscale(job_id: str, candidate_num: int):
         update_job(job_id, status="error", error=str(e), metadata=json.dumps(meta, default=str))
 
 
+@app.post("/wizard/{job_id}/pick-character")
+async def wizard_pick_character(job_id: str, pick: int = Form(...)):
+    """User picks their favourite character candidate."""
+    job = get_job(job_id)
+    if not job:
+        return HTMLResponse("Job not found", status_code=404)
+
+    if pick not in (1, 2, 3):
+        return HTMLResponse("Invalid selection", status_code=400)
+
+    meta = _parse_metadata(job)
+    step3 = meta.get("steps", {}).get("3", {})
+
+    # Copy chosen candidate to character.png (used by step 4 costume)
+    import shutil
+    order_dir = Path("orders") / job_id
+    src = order_dir / f"character_{pick}.png"
+    dst = order_dir / "character.png"
+    if src.exists():
+        shutil.copy2(str(src), str(dst))
+
+    step3["character"] = str(dst)
+    step3["user_pick"] = pick
+    meta["steps"]["3"] = step3
+    meta["current_step"] = 4
+    update_job(job_id, metadata=json.dumps(meta, default=str))
+
+    return RedirectResponse(url=f"/wizard/{job_id}/step/4", status_code=303)
+
+
 @app.post("/wizard/{job_id}/pick")
 async def wizard_pick(
     job_id: str,
@@ -623,8 +666,11 @@ async def wizard_download_tin_lid(job_id: str):
 IMAGE_FILES = {
     "input_prepared": "input_prepared.png",
     "bg_removed": "bg_removed.jpg",
-    "character_input": "character_input.png",
+    "normalized": "normalized.png",
     "character": "character.png",
+    "character_1": "character_1.png",
+    "character_2": "character_2.png",
+    "character_3": "character_3.png",
     "costumed": "costumed.png",
     "puzzle_surface": "puzzle_surface.jpg",
     "tin_lid": "tin_lid.jpg",

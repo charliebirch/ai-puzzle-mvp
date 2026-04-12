@@ -168,82 +168,80 @@ def step_remove_background(input_prepared_path: str, order_dir: str) -> dict:
     }
 
 
-def _crop_to_face(bg_removed_path: str, output_path: str) -> str:
-    """Crop a white-background cutout image to face + upper chest only.
+# Normalisation step prompt — module-level so it can be imported by CLI tools
+NORMALIZE_PROMPT = (
+    "Create a headshot of the person in the image that looks EXACTLY like them, "
+    "it needs to be as if another photo was taken of them. It must be perfect. "
+    "Preserve every facial detail — face shape, nose, mouth, eyes, skin tone, "
+    "hair colour, hair texture, and hairstyle must be identical to the source. "
+    "White background and shoulders up."
+)
 
-    Finds the bounding box of non-white pixels (the person cutout), then takes
-    the top portion of that box (roughly face + shoulders). This prevents Kontext
-    Max from seeing hand positions, body poses, or anything below the chest in
-    the source photo.
 
-    Falls back to the original image if cropping fails (e.g. image is entirely
-    white or very small).
+def step_normalize_portrait(
+    bg_removed_path: str,
+    order_dir: str,
+    seed: Optional[int] = None,
+) -> dict:
+    """Step 2b: Normalise portrait to front-facing, shoulders-up, looking at camera.
+
+    Takes the bg-removed photo (any angle/pose) and outputs a standardised
+    photorealistic portrait — same person, same appearance, just standardised
+    framing. This improves character generation quality by giving the model
+    a clean, consistent input regardless of the original photo's angle/pose.
+
+    Also removes props and objects that BG removal may have kept (e.g. held
+    objects from recraft), so the character gen step only sees the person.
+
+    Skippable via NORMALIZE_PORTRAIT=0 env var (useful for already-ideal inputs).
+
+    Cost: $0.08 (Kontext Max). Skipped cost: $0.00.
 
     Args:
-        bg_removed_path: Path to the white-background cutout (bg_removed.jpg).
-        output_path: Where to save the cropped image (character_input.png).
+        bg_removed_path: Path to bg-removed photo (white background).
+        order_dir: Path to the order output directory.
+        seed: Optional random seed for reproducibility.
 
     Returns:
-        Path to the cropped image (output_path), or bg_removed_path on failure.
+        dict with: normalized (path), cost, elapsed_seconds, skipped.
     """
-    try:
-        img = Image.open(bg_removed_path).convert("RGBA")
-        w, h = img.size
+    import os as _os
 
-        # Build a mask of non-white pixels (person silhouette)
-        # White = R>240, G>240, B>240
-        r, g, b, a = img.split()
-        import array as _array
-        pixels_r = list(r.getdata())
-        pixels_g = list(g.getdata())
-        pixels_b = list(b.getdata())
+    if _os.getenv("NORMALIZE_PORTRAIT", "1") == "0":
+        print("  step_normalize_portrait: skipped (NORMALIZE_PORTRAIT=0)")
+        return {
+            "normalized": bg_removed_path,
+            "cost": 0.0,
+            "elapsed_seconds": 0.0,
+            "skipped": True,
+        }
 
-        # Find bounding box of non-white pixels
-        min_x, min_y, max_x, max_y = w, h, 0, 0
-        for idx, (pr, pg, pb) in enumerate(zip(pixels_r, pixels_g, pixels_b)):
-            if pr < 240 or pg < 240 or pb < 240:
-                px = idx % w
-                py = idx // w
-                min_x = min(min_x, px)
-                max_x = max(max_x, px)
-                min_y = min(min_y, py)
-                max_y = max(max_y, py)
+    from backends.registry import get_backend
 
-        if max_x <= min_x or max_y <= min_y:
-            # No non-white pixels found — fall back
-            return bg_removed_path
+    backend = get_backend("flux_kontext_max")
+    start = time.time()
+    gen_result = backend.generate(
+        prompt=NORMALIZE_PROMPT,
+        image_path=bg_removed_path,
+        style_settings={},
+        aspect_ratio="1:1",
+        seed=seed,
+    )
+    elapsed = time.time() - start
 
-        person_h = max_y - min_y
-        person_w = max_x - min_x
+    response = requests.get(gen_result.image_url, timeout=120)
+    response.raise_for_status()
+    img = Image.open(BytesIO(response.content))
+    output_path = str(Path(order_dir) / "normalized.png")
+    img.save(output_path)
 
-        # Take the top 45% of the person's height (face + upper chest)
-        # with a horizontal padding of 20% of person width on each side
-        crop_h = int(person_h * 0.45)
-        pad_x  = int(person_w * 0.20)
-
-        left   = max(0, min_x - pad_x)
-        top    = max(0, min_y - int(person_h * 0.05))   # small top margin
-        right  = min(w, max_x + pad_x)
-        bottom = min(h, min_y + crop_h)
-
-        if (right - left) < 64 or (bottom - top) < 64:
-            return bg_removed_path
-
-        cropped = img.crop((left, top, right, bottom)).convert("RGB")
-
-        # Composite onto white background
-        white = Image.new("RGB", cropped.size, (255, 255, 255))
-        if cropped.mode == "RGBA":
-            white.paste(cropped, mask=cropped.split()[3])
-        else:
-            white.paste(cropped)
-
-        white.save(output_path)
-        return output_path
-
-    except Exception as e:
-        print(f"  _crop_to_face: failed ({e}), using full bg_removed image")
-        return bg_removed_path
+    print(f"  Portrait normalized: {img.size[0]}x{img.size[1]} -> {output_path}")
+    return {
+        "normalized": output_path,
+        "cost": gen_result.cost_estimate,
+        "elapsed_seconds": round(elapsed, 1),
+        "skipped": False,
+    }
 
 
 def step_generate_character(
@@ -254,11 +252,12 @@ def step_generate_character(
     order_dir: str,
     seed: Optional[int] = None,
     age_range: str = "adult",
+    num_candidates: int = 3,
 ) -> dict:
-    """Step 3: Generate Pixar-style character using Kontext Max.
+    """Step 3: Generate Pixar-style character candidates using Kontext Max.
 
-    Transforms the white-background photo into a Pixar-like 3D animated
-    character, preserving identity. Cost: ~$0.08.
+    Generates multiple character candidates with different seeds so the user
+    can pick the best likeness. Cost: ~$0.08 × num_candidates.
 
     Uses age_range + gender to select the appropriate character prompt:
     toddler/child use age-specific prompts (no gendered body), teen/adult
@@ -270,48 +269,60 @@ def step_generate_character(
         gender: 'boy', 'girl', or 'person'.
         scene: Scene ID (e.g. 'village') for prompt selection.
         order_dir: Path to the order output directory.
-        seed: Optional seed for reproducibility.
+        seed: Optional seed for reproducibility. Additional candidates
+            use widely-spaced offsets for genuinely different results.
         age_range: 'toddler', 'child', 'teen', or 'adult'. Drives prompt
             file selection alongside gender.
+        num_candidates: Number of character variants to generate (default 3).
 
     Returns:
-        dict with character path, cost, and elapsed time.
+        dict with candidates list, cost, and elapsed time.
     """
+    import random
     from backends.registry import get_backend
     from scene_prompts import get_character_prompt
 
-    # Crop bg_removed down to face + upper chest so the model only sees
-    # identity reference, not the source pose or hand positions.
-    character_input_path = str(Path(order_dir) / "character_input.png")
-    actual_input = _crop_to_face(bg_removed_path, character_input_path)
-    used_crop = actual_input == character_input_path
-    print(f"  Character input: {'cropped face' if used_crop else 'full bg_removed (crop failed)'}")
-
     prompt = get_character_prompt(scene, subject, gender, age_range=age_range)
     backend = get_backend("flux_kontext_max")
+    order_dir = Path(order_dir)
 
-    start = time.time()
-    result = backend.generate(
-        prompt=prompt,
-        image_path=actual_input,
-        style_settings={},
-        seed=seed,
-    )
-    elapsed = time.time() - start
+    # Generate seeds with wide spread for genuinely different results
+    if seed is not None:
+        seeds = [seed + i * 31337 for i in range(num_candidates)]
+    else:
+        base = random.randint(1, 999999)
+        seeds = [(base + i * 31337) % 1_000_000 for i in range(num_candidates)]
 
-    # Download and save
-    response = requests.get(result.image_url, timeout=120)
-    response.raise_for_status()
-    img = Image.open(BytesIO(response.content))
-    output_path = str(Path(order_dir) / "character.png")
-    img.save(output_path, quality=95)
+    candidates = []
+    total_cost = 0
+    total_elapsed = 0
+
+    for i, s in enumerate(seeds):
+        print(f"  Character candidate {i+1}/{num_candidates} (seed={s})...")
+        start = time.time()
+        result = backend.generate(
+            prompt=prompt,
+            image_path=bg_removed_path,
+            style_settings={},
+            seed=s,
+        )
+        elapsed = time.time() - start
+        total_elapsed += elapsed
+        total_cost += result.cost_estimate
+
+        response = requests.get(result.image_url, timeout=120)
+        response.raise_for_status()
+        img = Image.open(BytesIO(response.content))
+        candidate_path = str(order_dir / f"character_{i+1}.png")
+        img.save(candidate_path, quality=95)
+
+        candidates.append(candidate_path)
+        print(f"    done in {elapsed:.1f}s")
 
     return {
-        "character": output_path,
-        "character_input": character_input_path if used_crop else None,
-        "cost": result.cost_estimate,
-        "elapsed_seconds": round(elapsed, 1),
-        "size": list(img.size),
+        "candidates": candidates,
+        "cost": round(total_cost, 3),
+        "elapsed_seconds": round(total_elapsed, 1),
         "prompt": prompt,
     }
 
