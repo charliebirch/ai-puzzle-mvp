@@ -144,7 +144,7 @@ def step_validate_and_prepare(photo_path: str, order_dir: str) -> dict:
 def step_remove_background(input_prepared_path: str, order_dir: str) -> dict:
     """Step 2: Remove background and replace with white.
 
-    Uses lucataco/remove-bg on Replicate (~$0.01).
+    Uses recraft-ai/recraft-remove-background on Replicate (~$0.01).
 
     Args:
         input_prepared_path: Path to the prepared input photo.

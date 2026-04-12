@@ -21,7 +21,7 @@ The owner (Charlie) has some coding ability but relies on Claude Code as the pri
 Photo → Remove BG ($0.01) → Character ($0.08) → Costume ($0.08) → Scene ($0.24) → Upscale ($0.002) → Export (free)
 ```
 
-1. **Background Removal** — `lucataco/remove-bg`, composite onto white
+1. **Background Removal** — `recraft-ai/recraft-remove-background`, composite onto white
 2. **Character Generation** — `flux-kontext-max`, Pixar transform preserving identity; face is cropped before sending
 3. **Costume** — `flux-kontext-max`, outfit picker (Adventurer or Wizard); prompts include `{subject}` for hair preservation
 4. **Scene Generation** — `flux-2-pro` text-only, detailed empty village scene with puzzle-optimised prompt
@@ -140,7 +140,7 @@ Full pricing: `docs/prodigi-jigsaws-gb-pricing.csv`
 
 | Model | Replicate ID | Cost | Used For |
 |-------|-------------|------|----------|
-| Remove BG | `lucataco/remove-bg` | $0.01 | Step 1: background removal |
+| Remove BG | `recraft-ai/recraft-remove-background` | $0.01 | Step 1: background removal |
 | Kontext Max | `black-forest-labs/flux-kontext-max` | $0.08 | Steps 2, 3, 5 (compositing) |
 | Kontext Pro | `black-forest-labs/flux-kontext-pro` | $0.04 | Available, not default |
 | FLUX 2 Pro | `black-forest-labs/flux-2-pro` | ~$0.08 | Step 4: scene generation (text-only) |
@@ -169,6 +169,7 @@ Full pricing: `docs/prodigi-jigsaws-gb-pricing.csv`
 | Print export format | JPG not PNG, sRGB, quality=95, subsampling=0 | Prodigi prefers JPG; 4:4:4 chroma for max print fidelity | 2026-04-06 |
 | Puzzle size in wizard | 252pc default, 110pc option | 252pc is native 4:3 (no crop), better margin, hero product | 2026-04-06 |
 | Regenerate buttons | Steps 3 + 4 have "Regenerate" that clears downstream + new seed | Needed before volume; no way to retry without starting over | 2026-04-06 |
+| Switch BG removal to Recraft | recraft-ai/recraft-remove-background | Charlie visually preferred recraft's outputs over lucataco; the retained-objects tradeoff is acceptable | 2026-04-12 |
 
 ## Current Status
 

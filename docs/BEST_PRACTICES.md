@@ -16,7 +16,7 @@ Learnings from extensive testing (March 2026). Follow these to avoid re-discover
 
 - **Always remove the background first.** This is the single biggest quality improvement we found.
 - Replace with **white** (not black, not transparent). White gives the best results for the character generation step.
-- Model: `lucataco/remove-bg` on Replicate (~$0.01)
+- Model: `recraft-ai/recraft-remove-background` on Replicate (~$0.01)
 - Composite the transparent result onto a white `(255, 255, 255)` background using PIL alpha compositing.
 
 ## Character Generation (Step 2)
@@ -148,7 +148,7 @@ Key metrics (from `docs/complete-ai-puzzle-guide-deep-research.md`):
 
 | Step | Model | Cost |
 |------|-------|------|
-| Background removal | lucataco/remove-bg | $0.01 |
+| Background removal | recraft-ai/recraft-remove-background | $0.01 |
 | Character generation | flux-kontext-max | $0.08 |
 | Costume | flux-kontext-max | $0.08 |
 | Scene generation | flux-kontext-max | $0.08 |

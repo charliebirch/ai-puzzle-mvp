@@ -6,8 +6,7 @@ Exact models, prompts, and parameters for each step.
 
 ## Step 1: Background Removal
 
-**Model:** `lucataco/remove-bg` on Replicate
-**Version:** `95fcc2a26d3899cd6c2691c900465aaeff466285a65c14638cc5f36f34befaf1`
+**Model:** `recraft-ai/recraft-remove-background` on Replicate
 **Cost:** ~$0.01
 **Code:** `src/remove_background.py`
 

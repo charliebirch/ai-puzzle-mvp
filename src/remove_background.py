@@ -18,8 +18,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# BRIA RMBG 2.0 — fast, high-quality background removal
-REPLICATE_MODEL = "lucataco/remove-bg:95fcc2a26d3899cd6c2691c900465aaeff466285a65c14638cc5f36f34befaf1"
+# Recraft — preserves hair edge quality and fine detail
+REPLICATE_MODEL = "recraft-ai/recraft-remove-background"
 COST_PER_RUN = 0.01
 
 
