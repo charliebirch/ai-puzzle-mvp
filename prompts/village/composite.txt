@@ -1,0 +1,10 @@
+Make this image look like a single seamless Pixar 3D rendered scene — a cinematic frame straight from a Pixar feature film. The animated character is standing on the left side of the wide village street; the scene stretches to the right behind them. The character should feel like they were always part of the village: match the warm golden-hour lighting on their skin, add a soft natural ground shadow beneath their feet, smooth all edges so there is no visible seam between character and scene.
+
+IMPORTANT — PRESERVE SCENE DETAIL:
+Keep ALL background detail exactly as it is — do not alter, blur, simplify, or fade any buildings, textures, window details, market stalls, or objects in the scene. The sky gradient, cloud formations, and light rays must remain unchanged. The cobblestone textures, moss, puddle reflection, and scattered objects at ground level must stay fully visible around the character's feet.
+
+Corner elements must be preserved in full detail: the tree branch with lanterns (top-left), the clock tower (top-right), the sunflowers (bottom-left), the stacked barrels and bunting (bottom-right).
+
+GROUND BLEND: Replace any white, grey, or washed-out area around the character's feet and legs with the cobblestone ground texture — the character must stand directly on the cobblestones with no background colour showing.
+
+Rich saturated colour palette, dramatic cartoon lighting with warm highlights and soft cool shadows, cinematic depth and atmosphere. Keep the character's face, skin tone, hair, and ethnicity exactly as they are. Do not add any text, words, letters, or writing anywhere in the image.

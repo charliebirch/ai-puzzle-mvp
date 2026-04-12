@@ -405,7 +405,7 @@ def step_composite(
 
     from backends.registry import get_backend
     from composite_pil import composite_character_onto_scene
-    from scene_prompts import get_scene
+    from scene_prompts import get_scene, get_scene_prompt, get_composite_prompt
     from upscale import upscale_image
 
     scene_config = get_scene(scene)
@@ -425,7 +425,7 @@ def step_composite(
     import replicate as _replicate
     start = time.time()
     scene_inputs = {
-        "prompt": scene_config["scene_prompt"],
+        "prompt": get_scene_prompt(scene),
         "resolution": "4 MP",
         "aspect_ratio": "4:3",  # Landscape — matches all Prodigi puzzle formats
         "output_format": "png",
@@ -475,7 +475,7 @@ def step_composite(
         candidate_path = str(order_dir / f"candidate_{i+1}.png")
         start = time.time()
         result = backend.generate(
-            prompt=scene_config["composite_E_prompt"],
+            prompt=get_composite_prompt(scene),
             image_path=pil_composite_path,
             style_settings={},
             aspect_ratio="4:3",  # Landscape — matches Prodigi puzzle format
