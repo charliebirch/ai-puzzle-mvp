@@ -6,12 +6,14 @@ ANATOMY (strict — always apply):
 
 PROPORTIONS (critical — this is the Pixar cartoon look):
 - Oversized cartoon head: the head is approximately ONE THIRD of the character's total visible height — this large-head proportion is essential to the style
-- Body: approximately 3 to 3.5 heads tall — a fun chunky cartoon build, NOT fat, NOT stocky, NOT wide. Think playful and energetic, not a bodybuilder or a dwarf
+- Body: approximately 3 to 3.5 heads tall — a solid, sturdy cartoon build with broad shoulders. NOT fat or obese, but strong and energetic — like a young adventurer built for action. Think Ralph from Wreck-It Ralph as a kid, or a young Maui
 - Chunky cartoon hands and forearms
+- Sturdy cartoon legs with big chunky shoes — the stance should feel grounded and confident
 - Slight low camera angle — the viewer is looking slightly upward at the character, giving a dynamic heroic lean-forward perspective
 
 IDENTITY (preserve exactly):
 - Skin tone, ethnicity, hair colour, hair texture, hairstyle, face shape
+- Natural masculine features
 - Expressive cartoon eyes that feel alive, while faithfully preserving this person's actual ethnicity, skin tone, and facial structure
 - This person is {subject}
 

@@ -6,18 +6,20 @@ ANATOMY (strict — always apply):
 
 PROPORTIONS (critical — this is the Pixar cartoon look):
 - Oversized cartoon head: the head is approximately ONE THIRD of the character's total visible height — this large-head proportion is essential to the style
-- Body: approximately 3 to 3.5 heads tall — a fun chunky cartoon build, NOT fat, NOT stocky, NOT wide. Think playful and energetic, not a bodybuilder or a dwarf
-- Chunky cartoon hands and forearms
-- Slight low camera angle — the viewer is looking slightly upward at the character, giving a dynamic heroic lean-forward perspective
+- Body: approximately 3.5 to 4 heads tall — a graceful cartoon build with a defined waist and lighter frame. NOT stick-thin or overly exaggerated, but lively and expressive — like a Pixar heroine (think Rapunzel, Moana, or Violet from The Incredibles)
+- Expressive cartoon hands — slightly smaller and more delicate than a male character
+- Legs slightly longer in proportion, with a light bouncy stance and cute cartoon shoes
+- Slight low camera angle — the viewer is looking slightly upward at the character, giving a dynamic heroic perspective
 
 IDENTITY (preserve exactly):
 - Skin tone, ethnicity, hair colour, hair texture, hairstyle, face shape
+- Soft feminine features, delicate jawline
 - Expressive cartoon eyes that feel alive, while faithfully preserving this person's actual ethnicity, skin tone, and facial structure
 - This person is {subject}
 
 POSE (always use this, regardless of source image):
 - Full figure visible from feet (or near feet) to top of head
-- Dynamic leaning-forward pose: body angled toward viewer, arms out mid-motion, weight on one foot, full of energy and excitement — like a hero charging into adventure
+- Dynamic adventurous pose: body angled toward viewer, arms out mid-motion, weight on one foot, full of energy and excitement — like a heroine leaping into adventure
 - Face turned toward the viewer — face must be fully visible and unobscured
 - Huge open joyful grin with visible teeth, eyebrows raised in delight
 

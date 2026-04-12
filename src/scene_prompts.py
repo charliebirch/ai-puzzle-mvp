@@ -83,23 +83,30 @@ def get_scene(scene_id: str) -> dict:
 
 
 def get_character_prompt(scene_id: str, subject: str, gender: str = "person") -> str:
-    """Build the full character generation prompt with subject and gender hint.
+    """Build the full character generation prompt for the given gender.
 
-    Loads from prompts/<scene>/character.txt and substitutes {subject}
-    and {gender_hint} placeholders.
+    Loads from prompts/<scene>/character_<gender>.txt if it exists,
+    falling back to character.txt (the neutral/person variant).
+
+    Gender-specific files have different PROPORTIONS and IDENTITY hints
+    baked in — boy gets a sturdier build, girl gets a more graceful build.
+    The {subject} placeholder is still substituted at runtime.
 
     Args:
         scene_id: Scene identifier.
         subject: Description of the person (e.g. 'the person in the input image').
-        gender: 'boy', 'girl', or 'person'.
+        gender: 'boy', 'girl', or 'person'. Drives which prompt file is loaded.
 
     Returns:
         Formatted prompt string ready for Kontext Max.
     """
-    scene = get_scene(scene_id)
-    gender_hint = scene["gender_hints"].get(gender, "")
-    prompt = _load_prompt(scene_id, "character.txt")
-    return prompt.format(subject=subject, gender_hint=gender_hint)
+    # Try gender-specific file first, fall back to neutral
+    filename = f"character_{gender}.txt"
+    try:
+        prompt = _load_prompt(scene_id, filename)
+    except FileNotFoundError:
+        prompt = _load_prompt(scene_id, "character.txt")
+    return prompt.format(subject=subject)
 
 
 def get_costume_prompt(scene_id: str, subject: str, outfit_id: str = None) -> str:

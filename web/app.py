@@ -317,11 +317,17 @@ async def wizard_start(
     if puzzle_size not in ("110pc", "252pc"):
         puzzle_size = "252pc"
 
+    # Use detected gender for prompt file selection only (boy/girl/person).
+    # This selects gender-appropriate body proportions in the character prompt
+    # (e.g. sturdier build for boys, more graceful for girls) — it does NOT
+    # inject any text description into the prompt itself.
+    detected_gender = gender if gender in ("boy", "girl") else "person"
+
     # Build initial metadata
     meta = {
         "scene": "village",
         "subject": final_subject,
-        "gender": "person",
+        "gender": detected_gender,
         "puzzle_size": puzzle_size,
         "current_step": 2,
         "steps": {
