@@ -133,7 +133,7 @@ def _run_wizard_step(job_id: str, step: int):
             bg_removed = steps["2"]["bg_removed"]
             result = step_generate_character(
                 bg_removed_path=bg_removed,
-                subject=meta.get("subject", "a smiling person"),
+                subject=meta.get("subject", "the person in the input image"),
                 gender=meta.get("gender", "person"),
                 scene=meta.get("scene", "village"),
                 order_dir=str(order_dir),
@@ -305,33 +305,12 @@ async def wizard_start(
     # Validate and prepare first (converts HEIC → JPEG if needed)
     result = step_validate_and_prepare(photo_path, str(order_dir))
 
-    # Auto-detect skin tone from the prepared image (not the HEIC original)
-    # Gracefully skips if OpenCV is not available (e.g. Render lightweight mode)
-    if not skin_tone:
-        try:
-            from subject_builder import detect_skin_tone
-            detected = detect_skin_tone(result["input_prepared"])
-            if detected:
-                skin_tone = detected
-                print(f"  Auto-detected skin tone: {skin_tone}")
-        except ImportError:
-            pass
-
-    # Build subject description
-    final_subject = subject.strip()
-    if not final_subject and (age_range or gender or hair_color or hair_style or ethnicity):
-        from subject_builder import build_subject_description
-        final_subject = build_subject_description(
-            age_range=age_range or "child",
-            gender=gender or "person",
-            ethnicity=ethnicity,
-            hair_color=hair_color,
-            hair_style=hair_style,
-            skin_tone=skin_tone,
-            extras=extras,
-        )
-    if not final_subject:
-        final_subject = "a smiling person"
+    # Subject description: use the input image as identity reference only.
+    # Detected attributes (age, gender, ethnicity, hair, skin) are shown in the UI
+    # dropdowns for information but NOT injected into generation prompts — text
+    # descriptions of appearance make outputs look generic rather than preserving
+    # the person's actual likeness from the image.
+    final_subject = "the person in the input image"
 
     # Parse seed
     parsed_seed = None
@@ -349,7 +328,7 @@ async def wizard_start(
     meta = {
         "scene": "village",
         "subject": final_subject,
-        "gender": gender or "person",
+        "gender": "person",
         "puzzle_size": puzzle_size,
         "current_step": 2,
         "steps": {
