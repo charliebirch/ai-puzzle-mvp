@@ -6,7 +6,7 @@ ANATOMY (strict — always apply):
 
 PROPORTIONS (critical — this is the Pixar cartoon look):
 - Oversized cartoon head: the head is approximately ONE THIRD of the character's total visible height — this large-head proportion is essential to the style
-- Body: approximately 3 to 3.5 heads tall — a solid, sturdy cartoon build with broad shoulders. NOT fat or obese, but strong and energetic — like a young adventurer built for action. Think Ralph from Wreck-It Ralph as a kid, or a young Maui
+- Body: approximately 3 to 3.5 heads tall — a solid, sturdy cartoon build with broad shoulders. NOT fat or obese, but strong and energetic — like a young adventurer built for action.
 - Chunky cartoon hands and forearms
 - Sturdy cartoon legs with big chunky shoes — the stance should feel grounded and confident
 - Slight low camera angle — the viewer is looking slightly upward at the character, giving a dynamic heroic lean-forward perspective
@@ -21,7 +21,7 @@ POSE (always use this, regardless of source image):
 - Full figure visible from feet (or near feet) to top of head
 - Dynamic leaning-forward pose: body angled toward viewer, arms out mid-motion, weight on one foot, full of energy and excitement — like a hero charging into adventure
 - Face turned toward the viewer — face must be fully visible and unobscured
-- Huge open joyful grin with visible teeth, eyebrows raised in delight
+- Natural joyous smile that looks exactly like how their animated character would be living their best life — bright white celebrity-grade teeth
 
 STYLE:
 - Pixar 3D animated style, rich cartoon shading, smooth skin with warm subsurface scattering, dramatic cartoon lighting with warm highlights and cool shadows

@@ -138,6 +138,7 @@ def _run_wizard_step(job_id: str, step: int):
                 scene=meta.get("scene", "village"),
                 order_dir=str(order_dir),
                 seed=meta.get("seed"),
+                age_range=meta.get("age_range", "adult"),
             )
 
         elif step == 4:
@@ -317,17 +318,20 @@ async def wizard_start(
     if puzzle_size not in ("110pc", "252pc"):
         puzzle_size = "252pc"
 
-    # Use detected gender for prompt file selection only (boy/girl/person).
-    # This selects gender-appropriate body proportions in the character prompt
-    # (e.g. sturdier build for boys, more graceful for girls) — it does NOT
-    # inject any text description into the prompt itself.
+    # Use detected age_range + gender for prompt file selection only.
+    # Toddlers/children get age-appropriate prompts (chubby, playful).
+    # Teens/adults get gender-specific body proportions (boy=sturdy, girl=graceful).
+    # None of this injects text descriptions into the prompt — it just picks
+    # which prompt FILE to load.
     detected_gender = gender if gender in ("boy", "girl") else "person"
+    detected_age = age_range if age_range in ("toddler", "child", "teen", "adult") else "adult"
 
     # Build initial metadata
     meta = {
         "scene": "village",
         "subject": final_subject,
         "gender": detected_gender,
+        "age_range": detected_age,
         "puzzle_size": puzzle_size,
         "current_step": 2,
         "steps": {

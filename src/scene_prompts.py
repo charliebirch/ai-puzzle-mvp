@@ -82,26 +82,54 @@ def get_scene(scene_id: str) -> dict:
     raise ValueError(f"Unknown scene '{scene_id}'. Available: {available}")
 
 
-def get_character_prompt(scene_id: str, subject: str, gender: str = "person") -> str:
-    """Build the full character generation prompt for the given gender.
+def _pick_character_variant(age_range: str, gender: str) -> str:
+    """Pick the right character prompt filename based on age and gender.
 
-    Loads from prompts/<scene>/character_<gender>.txt if it exists,
-    falling back to character.txt (the neutral/person variant).
+    Routing:
+        toddler (any gender)  → character_toddler.txt
+        child   (any gender)  → character_child.txt
+        teen/adult + boy      → character_boy.txt
+        teen/adult + girl     → character_girl.txt
+        anything else         → character.txt (neutral fallback)
+    """
+    if age_range in ("toddler",):
+        return "character_toddler.txt"
+    if age_range in ("child",):
+        return "character_child.txt"
+    if gender in ("boy", "girl"):
+        return f"character_{gender}.txt"
+    return "character.txt"
 
-    Gender-specific files have different PROPORTIONS and IDENTITY hints
-    baked in — boy gets a sturdier build, girl gets a more graceful build.
-    The {subject} placeholder is still substituted at runtime.
+
+def get_character_prompt(
+    scene_id: str,
+    subject: str,
+    gender: str = "person",
+    age_range: str = "adult",
+) -> str:
+    """Build the full character generation prompt for the given age and gender.
+
+    Routes to the appropriate prompt file:
+        toddler → character_toddler.txt  (max cute, chubby, no gendered build)
+        child   → character_child.txt    (kid proportions, no gendered build)
+        teen/adult + boy  → character_boy.txt   (masculine proportions)
+        teen/adult + girl → character_girl.txt   (feminine proportions)
+        fallback          → character.txt        (neutral)
+
+    Each file is self-contained with age/gender-appropriate PROPORTIONS,
+    IDENTITY hints, and POSE baked in. Only {subject} is substituted.
 
     Args:
         scene_id: Scene identifier.
         subject: Description of the person (e.g. 'the person in the input image').
-        gender: 'boy', 'girl', or 'person'. Drives which prompt file is loaded.
+        gender: 'boy', 'girl', or 'person'. Used for teen/adult routing.
+        age_range: 'toddler', 'child', 'teen', or 'adult'. Overrides gender
+            for young children (toddler/child always use neutral body).
 
     Returns:
         Formatted prompt string ready for Kontext Max.
     """
-    # Try gender-specific file first, fall back to neutral
-    filename = f"character_{gender}.txt"
+    filename = _pick_character_variant(age_range, gender)
     try:
         prompt = _load_prompt(scene_id, filename)
     except FileNotFoundError:

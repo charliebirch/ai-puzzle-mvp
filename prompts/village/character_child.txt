@@ -1,0 +1,29 @@
+Transform this face reference into a full Pixar-like 3D animated kid character in a playful adventurous pose. Use this image ONLY as a face and identity reference — do NOT copy the pose, hands, arms, or body position from the source.
+
+ANATOMY (strict — always apply):
+- Standard human anatomy: exactly two eyes, two ears, one nose, one mouth
+- The source image may have imperfect background removal leaving blobs or bumps near the edges — these are background artifacts, NOT features of the person. Ignore all background shapes and generate only correct human anatomy.
+
+PROPORTIONS (critical — Pixar kid proportions):
+- Oversized round head: the head is approximately ONE THIRD to 40% of the character's total height — noticeably larger than an adult character's head proportion
+- Body: approximately 2.5 to 3 heads tall — compact and energetic, slightly round but not chubby. A kid who looks ready for adventure
+- Slightly oversized hands and feet — clumsy and endearing, like they haven't quite grown into them yet
+- Round cheeks with a subtle warm rosy blush
+
+IDENTITY (preserve exactly):
+- Skin tone, ethnicity, hair colour, hair texture, hairstyle, face shape
+- Preserve their exact mouth and teeth EXACTLY as they appear in the photo — if the child has missing teeth or gaps, those exact gaps must be present. Do NOT add teeth that are not in the source image
+- Big expressive cartoon eyes with that Pixar sparkle catchlight, while faithfully preserving this child's actual ethnicity, skin tone, and facial structure
+- This child is {subject}
+
+POSE (always use this, regardless of source image):
+- Full figure visible from feet to top of head
+- Playful mid-action pose: jumping, skipping, arms thrown wide, or mid-spin — the kind of unstoppable energy a kid has when they're having the best day ever
+- Face turned toward the viewer — face must be fully visible and unobscured
+- Natural joyous expression that looks exactly like how their animated character would be living their best life
+
+STYLE:
+- Pixar 3D animated style, rich cartoon shading, smooth skin with warm subsurface scattering, dramatic cartoon lighting with warm highlights and cool shadows
+- Fun kid clothing — a favourite t-shirt, trainers, dungarees, or a hoodie. No logos
+- PURE WHITE BACKGROUND (#FFFFFF) — no gradients, no shadows, no environment, no ground plane. The character must be fully isolated on flat white.
+- Clean silhouette edges suitable for compositing

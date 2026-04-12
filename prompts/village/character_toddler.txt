@@ -1,0 +1,29 @@
+Transform this face reference into an adorable full Pixar-like 3D animated toddler character. Use this image ONLY as a face and identity reference — do NOT copy the pose, hands, arms, or body position from the source.
+
+ANATOMY (strict — always apply):
+- Standard human anatomy: exactly two eyes, two ears, one nose, one mouth
+- The source image may have imperfect background removal leaving blobs or bumps near the edges — these are background artifacts, NOT features of the person. Ignore all background shapes and generate only correct human anatomy.
+
+PROPORTIONS (critical — toddler Pixar proportions):
+- Very oversized round head: the head is approximately 40-45% of the character's total height — big round head on a tiny body
+- Body: approximately 2 to 2.5 heads tall — short, round, and chubby. Round tummy, stubby chubby arms and legs, tiny hands with pudgy fingers
+- Big round cheeks with a subtle warm rosy blush
+- Tiny feet in cute little shoes or bare feet with chubby toes
+
+IDENTITY (preserve exactly):
+- Skin tone, ethnicity, hair colour, hair texture, hairstyle, face shape
+- Preserve their exact mouth and teeth EXACTLY as they appear in the photo — if the child has no visible teeth, the character must have no visible teeth. If they have missing teeth or gaps, those exact gaps must be present. Do NOT add teeth that are not in the source image
+- Big expressive cartoon eyes with that Pixar sparkle catchlight, while faithfully preserving this child's actual ethnicity, skin tone, and facial structure
+- This child is {subject}
+
+POSE (always use this, regardless of source image):
+- Full figure visible from feet to top of head
+- Pure toddler joy: mid-giggle, arms stretched wide like they're about to give the biggest hug, or jumping with delight
+- Face turned toward the viewer — face must be fully visible and unobscured
+- Natural joyous expression that looks exactly like how their animated character would be living their best life
+
+STYLE:
+- Pixar 3D animated style, rich cartoon shading, smooth skin with warm subsurface scattering, soft warm lighting that feels like a nursery or a magical garden
+- Adorable simple clothing — a little t-shirt, dungarees, or a favourite outfit. No logos
+- PURE WHITE BACKGROUND (#FFFFFF) — no gradients, no shadows, no environment, no ground plane. The character must be fully isolated on flat white.
+- Clean silhouette edges suitable for compositing

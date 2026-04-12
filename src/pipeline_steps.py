@@ -253,11 +253,16 @@ def step_generate_character(
     scene: str,
     order_dir: str,
     seed: Optional[int] = None,
+    age_range: str = "adult",
 ) -> dict:
     """Step 3: Generate Pixar-style character using Kontext Max.
 
     Transforms the white-background photo into a Pixar-like 3D animated
     character, preserving identity. Cost: ~$0.08.
+
+    Uses age_range + gender to select the appropriate character prompt:
+    toddler/child use age-specific prompts (no gendered body), teen/adult
+    use gender-specific prompts (boy/girl body proportions).
 
     Args:
         bg_removed_path: Path to the background-removed photo.
@@ -266,6 +271,8 @@ def step_generate_character(
         scene: Scene ID (e.g. 'village') for prompt selection.
         order_dir: Path to the order output directory.
         seed: Optional seed for reproducibility.
+        age_range: 'toddler', 'child', 'teen', or 'adult'. Drives prompt
+            file selection alongside gender.
 
     Returns:
         dict with character path, cost, and elapsed time.
@@ -280,7 +287,7 @@ def step_generate_character(
     used_crop = actual_input == character_input_path
     print(f"  Character input: {'cropped face' if used_crop else 'full bg_removed (crop failed)'}")
 
-    prompt = get_character_prompt(scene, subject, gender)
+    prompt = get_character_prompt(scene, subject, gender, age_range=age_range)
     backend = get_backend("flux_kontext_max")
 
     start = time.time()
