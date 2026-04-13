@@ -1,4 +1,4 @@
-Transform this face reference into a full Pixar-like 3D animated kid character in a playful adventurous pose. Use this image ONLY as a face and identity reference — do NOT copy the pose, hands, arms, or body position from the source.
+Render this person as a full Pixar-like 3D animated kid character in a playful adventurous pose that is instantly recognisable as them.
 
 ANATOMY (strict — always apply):
 - Standard human anatomy: exactly two eyes, two ears, one nose, one mouth
@@ -11,9 +11,9 @@ PROPORTIONS (critical — Pixar kid proportions):
 - Round cheeks with a subtle warm rosy blush
 
 IDENTITY (preserve exactly):
-- Skin tone, ethnicity, hair colour, hair texture, hairstyle, face shape
+- Faithfully preserve this person's actual ethnicity, skin tone, hair colour, hair texture, hairstyle, face shape, nose shape, and ear shape
 - Preserve their exact mouth and teeth EXACTLY as they appear in the photo — if the child has missing teeth or gaps, those exact gaps must be present. Do NOT add teeth that are not in the source image
-- Big expressive cartoon eyes with that Pixar sparkle catchlight, while faithfully preserving this child's actual ethnicity, skin tone, and facial structure
+- Big expressive cartoon eyes with that Pixar sparkle catchlight
 - This child is {subject}
 
 POSE (always use this, regardless of source image):
@@ -23,7 +23,10 @@ POSE (always use this, regardless of source image):
 - Natural joyous expression that looks exactly like how their animated character would be living their best life
 
 STYLE:
-- Pixar 3D animated style, rich cartoon shading, smooth skin with warm subsurface scattering, dramatic cartoon lighting with warm highlights and cool shadows
+- Pixar 3D animated cartoon style — explicitly cartoon, NOT photorealistic. Rich cartoon shading, smooth skin with warm subsurface scattering, dramatic cartoon lighting with warm highlights and cool shadows
+- A nose in the same shape as their actual nose — this is really important
 - Fun kid clothing — a favourite t-shirt, trainers, dungarees, or a hoodie. No logos
 - PURE WHITE BACKGROUND (#FFFFFF) — no gradients, no shadows, no environment, no ground plane. The character must be fully isolated on flat white.
 - Clean silhouette edges suitable for compositing
+
+They must remain instantly recognisable as themselves after stylisation. It must be perfect.

@@ -1,0 +1,20 @@
+Render this person as a Pixar-like 3D animated head-and-shoulders portrait that is instantly recognisable as them.
+
+FRAMING:
+- Head-and-shoulders portrait only, head centred in frame, {shoulders_hint} visible at the bottom.
+- Face turned toward the viewer — fully visible and unobscured. Direct or very slight 3/4 angle.
+- The source image may have imperfect background removal leaving blobs or bumps near the edges — these are background artifacts, NOT features of the person. Ignore all background shapes.
+
+STYLE:
+- Pixar 3D animated cartoon style — explicitly cartoon, NOT photorealistic. Rich cartoon shading, smooth skin with warm subsurface scattering, dramatic cartoon lighting with warm highlights and cool shadows.
+- Expressive cartoon eyes that feel alive, with a subtle Pixar sparkle catchlight.
+- A nose in the same shape as their actual nose — this is really important.
+- Natural joyous smile — like how their animated character would be living their best life. Not forced.
+- PURE WHITE BACKGROUND (#FFFFFF) — no gradients, no shadows, no environment, no ground plane.
+- Clean silhouette edges suitable for compositing.
+
+IDENTITY (this is the whole job):
+- Faithfully preserve this person's actual ethnicity, skin tone, hair colour, hair texture, hairstyle, face shape, nose shape, and ear shape.
+{age_face_hint}
+{teeth_hint}
+- They must remain instantly recognisable as themselves after stylisation. It must be perfect.
