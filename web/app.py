@@ -593,6 +593,9 @@ async def wizard_pick_character(job_id: str, pick: int = Form(...)):
     dst = order_dir / "character.png"
     if src.exists():
         shutil.copy2(str(src), str(dst))
+        # Whiten teeth on the chosen character before it feeds into costume
+        from teeth_whitening import whiten_teeth
+        whiten_teeth(str(dst))
 
     step3["character"] = str(dst)
     step3["user_pick"] = pick

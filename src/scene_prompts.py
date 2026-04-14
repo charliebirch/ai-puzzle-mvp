@@ -35,8 +35,8 @@ AGE_FACE_HINTS = {
 }
 
 TEETH_HINTS = {
-    "adult": "- Natural bright white teeth — celebrity-grade, not forced.",
-    "teen": "- Natural bright white teeth — celebrity-grade, not forced.",
+    "adult": "- Bright, clean white teeth. Override any yellowing or discolouration from the source photo — in this cartoon world everyone has perfect white teeth.",
+    "teen": "- Bright, clean white teeth. Override any yellowing or discolouration from the source photo — in this cartoon world everyone has perfect white teeth.",
 }
 
 # --- Costume body-hint lookups ---
