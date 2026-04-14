@@ -7,11 +7,15 @@ FRAMING:
 
 STYLE:
 - Pixar 3D animated cartoon style — explicitly cartoon, NOT photorealistic. Rich cartoon shading, smooth skin with warm subsurface scattering, dramatic cartoon lighting with warm highlights and cool shadows.
-- Expressive cartoon eyes that feel alive, with a subtle Pixar sparkle catchlight.
 - A nose in the same shape as their actual nose — this is really important.
 - Natural joyous smile — like how their animated character would be living their best life. Not forced.
 - PURE WHITE BACKGROUND (#FFFFFF) — no gradients, no shadows, no environment, no ground plane.
 - Clean silhouette edges suitable for compositing.
+
+GAZE (critical — get this right):
+- Both eyes looking directly at the viewer with perfectly symmetrical gaze.
+- Both pupils must be positioned identically within their iris — if the left pupil is centred, the right pupil must also be centred. No eye should turn inward or outward more than the other.
+- Relaxed, warm eyelids — upper eyelids resting gently on the top of the iris, NOT wide open. This is a warm smile, not a surprised expression.
 
 IDENTITY (this is the whole job):
 - Faithfully preserve this person's actual ethnicity, skin tone, hair colour, hair texture, hairstyle, face shape, nose shape, and ear shape.

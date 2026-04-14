@@ -4,4 +4,4 @@ Character build: Pixar-style cartoon proportions, {body_hint}, relaxed standing 
 
 Background: pure white (#FFFFFF), no environment, no shadows, no ground plane.
 
-This character is {subject}. Keep their face, skin tone, hair colour, hair texture, hairstyle, nose shape, ear shape, glasses and expression exactly as in the input headshot. They must remain instantly recognisable as themselves.
+This character is {subject}. Keep their face, skin tone, hair colour, hair texture, hairstyle, nose shape, ear shape, eye gaze direction, glasses and expression exactly as in the input headshot. They must remain instantly recognisable as themselves.
