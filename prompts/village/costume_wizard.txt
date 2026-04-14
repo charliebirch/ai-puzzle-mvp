@@ -1,1 +1,7 @@
-Take this animated character and dress them in a magnificent wizard outfit — long flowing deep-purple robes covered in golden stars and moons, a tall pointed wizard hat with a curled brim, and they are holding a gnarled wooden staff with a glowing blue gem at the top. This character is {subject}. Faithfully preserve their face, skin tone, hair colour, hair texture, hairstyle, nose shape, and ear shape exactly as they are — the wizard hat sits on top of their existing hair, it does not replace or hide it. Do not alter the hair in any way. Keep glasses and expression exactly the same. Keep the white background. Same framing and pose. They must remain instantly recognisable as themselves.
+Take this animated headshot and expand it into a full-body Pixar 3D character wearing a magnificent wizard outfit — long flowing deep-purple robes covered in golden stars and moons, a tall pointed wizard hat with a curled brim, and they are holding a gnarled wooden staff with a glowing blue gem at the top. The wizard hat sits on top of their existing hair, it does not replace or hide it.
+
+Character build: Pixar-style cartoon proportions, {body_hint}, standing pose with staff held proudly, face toward viewer, natural joyous smile.
+
+Background: pure white (#FFFFFF), no environment, no shadows, no ground plane.
+
+This character is {subject}. Keep their face, skin tone, hair colour, hair texture, hairstyle, nose shape, ear shape, glasses and expression exactly as in the input headshot. They must remain instantly recognisable as themselves.

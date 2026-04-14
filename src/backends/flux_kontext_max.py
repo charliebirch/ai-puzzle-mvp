@@ -4,10 +4,10 @@ Higher quality generation at $0.08/run (2x Pro price).
 May preserve identity better natively due to more inference steps.
 """
 
-import replicate
 from typing import Dict, Optional
 
 from backends.base import BaseBackend, GenerationResult, _extract_url
+from replicate_retry import run_with_retry
 
 
 class FluxKontextMaxBackend(BaseBackend):
@@ -39,7 +39,13 @@ class FluxKontextMaxBackend(BaseBackend):
         if seed is not None:
             inputs["seed"] = seed
 
-        output = replicate.run(self.replicate_id, input=inputs)
+        # Pass through optional Replicate params if provided
+        if "safety_tolerance" in kwargs:
+            inputs["safety_tolerance"] = kwargs["safety_tolerance"]
+        if "prompt_upsampling" in kwargs:
+            inputs["prompt_upsampling"] = kwargs["prompt_upsampling"]
+
+        output = run_with_retry(self.replicate_id, input=inputs)
         image_url = _extract_url(output)
 
         return GenerationResult(

@@ -11,7 +11,6 @@ import os
 from io import BytesIO
 from pathlib import Path
 
-import replicate
 import requests
 from PIL import Image
 from dotenv import load_dotenv
@@ -46,8 +45,10 @@ def remove_background(input_path: str, output_path: str) -> dict:
     """
     print(f"Removing background from {input_path}...")
 
+    from replicate_retry import run_with_retry
+
     with open(input_path, "rb") as f:
-        output = replicate.run(
+        output = run_with_retry(
             REPLICATE_MODEL,
             input={"image": f},
         )

@@ -13,10 +13,46 @@ Each scene has prompts for every pipeline step:
 Placeholders like {subject} and {gender_hint} are filled at runtime.
 """
 
+import re
 from pathlib import Path
 
 # Prompt files live alongside src/ in the project root
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+
+
+# --- Headshot prompt slot lookups ---
+
+SHOULDERS_HINTS = {
+    ("adult", "boy"): "masculine shoulders",
+    ("adult", "girl"): "feminine shoulders",
+    ("teen", "boy"): "masculine shoulders",
+    ("teen", "girl"): "feminine shoulders",
+}
+
+AGE_FACE_HINTS = {
+    "toddler": "- Round cheeks with a subtle warm rosy blush.",
+    "child": "- Round cheeks with a subtle warm rosy blush.",
+}
+
+TEETH_HINTS = {
+    "adult": "- Natural bright white teeth — celebrity-grade, not forced.",
+    "teen": "- Natural bright white teeth — celebrity-grade, not forced.",
+}
+
+# --- Costume body-hint lookups ---
+
+BODY_HINTS = {
+    ("adult", "boy"): "masculine build, broad shoulders, body approximately 3.5 heads tall",
+    ("adult", "girl"): "graceful feminine build, body approximately 3.5 heads tall",
+    ("teen", "boy"): "masculine build, broad shoulders, body approximately 3.5 heads tall",
+    ("teen", "girl"): "graceful feminine build, body approximately 3.5 heads tall",
+    ("child", "boy"): "child proportions, body approximately 3 heads tall, slightly slender limbs",
+    ("child", "girl"): "child proportions, body approximately 3 heads tall, slightly slender limbs",
+    ("child", "person"): "child proportions, body approximately 3 heads tall, slightly slender limbs",
+    ("toddler", "boy"): "toddler proportions, body approximately 2.5 heads tall, chubby limbs, round belly",
+    ("toddler", "girl"): "toddler proportions, body approximately 2.5 heads tall, chubby limbs, round belly",
+    ("toddler", "person"): "toddler proportions, body approximately 2.5 heads tall, chubby limbs, round belly",
+}
 
 
 def _load_prompt(scene_id: str, filename: str) -> str:
@@ -137,8 +173,48 @@ def get_character_prompt(
     return prompt.format(subject=subject)
 
 
-def get_costume_prompt(scene_id: str, subject: str, outfit_id: str = None) -> str:
-    """Build the costume prompt with subject description substituted in.
+def get_headshot_prompt(
+    scene_id: str,
+    age_range: str = "adult",
+    gender: str = "person",
+) -> str:
+    """Build the headshot character prompt with age/gender slots filled.
+
+    Uses the single collapsed character_headshot.txt template with three
+    slots: {shoulders_hint}, {age_face_hint}, {teeth_hint}.
+
+    Args:
+        scene_id: Scene identifier (e.g. 'village').
+        age_range: 'toddler', 'child', 'teen', or 'adult'.
+        gender: 'boy', 'girl', or 'person'.
+
+    Returns:
+        Formatted prompt string ready for Kontext Max.
+    """
+    prompt = _load_prompt(scene_id, "character_headshot.txt")
+
+    shoulders = SHOULDERS_HINTS.get((age_range, gender), "shoulders")
+    age_face = AGE_FACE_HINTS.get(age_range, "")
+    teeth = TEETH_HINTS.get(age_range, "")
+
+    prompt = prompt.format(
+        shoulders_hint=shoulders,
+        age_face_hint=age_face,
+        teeth_hint=teeth,
+    )
+    # Collapse runs of blank lines left by empty slots
+    prompt = re.sub(r"\n{3,}", "\n\n", prompt)
+    return prompt
+
+
+def get_costume_prompt(
+    scene_id: str,
+    subject: str,
+    outfit_id: str = None,
+    age_range: str = "adult",
+    gender: str = "person",
+) -> str:
+    """Build the costume prompt with subject and body hints substituted in.
 
     Loads from prompts/<scene>/costume_<outfit_id>.txt if an outfit is
     specified, otherwise falls back to costume_default.txt.
@@ -148,6 +224,8 @@ def get_costume_prompt(scene_id: str, subject: str, outfit_id: str = None) -> st
         subject: Full subject description. Used as an explicit text anchor
             so the model doesn't alter hair/identity.
         outfit_id: Optional outfit choice ID (e.g. 'adventurer', 'wizard').
+        age_range: 'toddler', 'child', 'teen', or 'adult'. Used for body proportions.
+        gender: 'boy', 'girl', or 'person'. Used for body build hints.
 
     Returns:
         Formatted prompt string ready for Kontext Max.
@@ -157,7 +235,12 @@ def get_costume_prompt(scene_id: str, subject: str, outfit_id: str = None) -> st
         prompt = _load_prompt(scene_id, filename)
     except FileNotFoundError:
         prompt = _load_prompt(scene_id, "costume_default.txt")
-    return prompt.format(subject=subject)
+
+    body_hint = BODY_HINTS.get(
+        (age_range, gender),
+        "body approximately 3.5 heads tall",
+    )
+    return prompt.format(subject=subject, body_hint=body_hint)
 
 
 def get_scene_prompt(scene_id: str) -> str:

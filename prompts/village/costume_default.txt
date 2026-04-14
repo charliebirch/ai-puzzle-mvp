@@ -1,1 +1,7 @@
-Take this animated character and dress them in a whimsical fantasy adventurer outfit — leather vest, belt with pouches, a small cape, and boots. This character is {subject}. Faithfully preserve their face, skin tone, hair colour, hair texture, hairstyle, nose shape, and ear shape exactly as they are — do not alter the hair in any way. Keep glasses and expression exactly the same. Keep the white background. Same framing and pose. They must remain instantly recognisable as themselves.
+Take this animated headshot and expand it into a full-body Pixar 3D character wearing simple casual clothes — a plain short-sleeved t-shirt and comfortable trousers, no logos. No hat.
+
+Character build: Pixar-style cartoon proportions, {body_hint}, relaxed standing pose with weight on one foot, arms slightly away from body, face toward viewer, natural joyous smile.
+
+Background: pure white (#FFFFFF), no environment, no shadows, no ground plane.
+
+This character is {subject}. Keep their face, skin tone, hair colour, hair texture, hairstyle, nose shape, ear shape, glasses and expression exactly as in the input headshot. They must remain instantly recognisable as themselves.

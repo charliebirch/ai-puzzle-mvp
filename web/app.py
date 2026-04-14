@@ -163,6 +163,8 @@ def _run_wizard_step(job_id: str, step: int):
                 seed=meta.get("seed"),
                 outfit_id=meta.get("outfit_id"),
                 subject=meta.get("subject"),
+                age_range=meta.get("age_range", "adult"),
+                gender=meta.get("gender", "person"),
             )
 
         elif step == 5:

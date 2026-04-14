@@ -1,7 +1,7 @@
-import replicate
 from typing import Dict, Optional
 
 from backends.base import BaseBackend, GenerationResult, _extract_url
+from replicate_retry import run_with_retry
 
 
 class FluxKontextBackend(BaseBackend):
@@ -33,7 +33,7 @@ class FluxKontextBackend(BaseBackend):
         if seed is not None:
             inputs["seed"] = seed
 
-        output = replicate.run(self.replicate_id, input=inputs)
+        output = run_with_retry(self.replicate_id, input=inputs)
         image_url = _extract_url(output)
 
         return GenerationResult(

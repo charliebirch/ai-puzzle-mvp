@@ -14,7 +14,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-import replicate
 import requests
 from PIL import Image
 from dotenv import load_dotenv
@@ -85,8 +84,10 @@ def upscale_image(
         }
         model_id = REPLICATE_MODEL
 
+    from replicate_retry import run_with_retry
+
     try:
-        output = replicate.run(model_id, input=inputs)
+        output = run_with_retry(model_id, input=inputs)
         image_url = _extract_url(output)
     except Exception as e:
         if anime:
@@ -96,7 +97,7 @@ def upscale_image(
                 "scale": scale,
                 "face_enhance": face_enhance,
             }
-            output = replicate.run(REPLICATE_MODEL, input=inputs)
+            output = run_with_retry(REPLICATE_MODEL, input=inputs)
             image_url = _extract_url(output)
             model_label = "general (fallback)"
         else:

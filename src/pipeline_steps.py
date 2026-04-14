@@ -178,6 +178,64 @@ NORMALIZE_PROMPT = (
 )
 
 
+def _compare_faces(image_path_a: str, image_path_b: str) -> float:
+    """Compare face regions between two images using histogram correlation.
+
+    Uses OpenCV face detection to crop face regions, then compares
+    colour histograms. Returns a similarity score from -1.0 to 1.0
+    where 1.0 is identical. Falls back to full-image comparison if
+    no faces are detected.
+
+    Returns 1.0 if OpenCV is unavailable (fail-open).
+    """
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return 1.0  # Can't compare — assume OK
+
+    img_a = cv2.imread(image_path_a)
+    img_b = cv2.imread(image_path_b)
+    if img_a is None or img_b is None:
+        return 1.0
+
+    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    face_cascade = cv2.CascadeClassifier(cascade_path)
+
+    def _get_face_crop(img):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+        if len(faces) > 0:
+            # Use the largest face
+            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+            return img[y:y+h, x:x+w]
+        return img  # Fallback to full image
+
+    crop_a = _get_face_crop(img_a)
+    crop_b = _get_face_crop(img_b)
+
+    # Resize to same dimensions for comparison
+    size = (128, 128)
+    crop_a = cv2.resize(crop_a, size)
+    crop_b = cv2.resize(crop_b, size)
+
+    # Compare using colour histogram correlation (per-channel, averaged)
+    score = 0.0
+    for ch in range(3):
+        hist_a = cv2.calcHist([crop_a], [ch], None, [64], [0, 256])
+        hist_b = cv2.calcHist([crop_b], [ch], None, [64], [0, 256])
+        cv2.normalize(hist_a, hist_a)
+        cv2.normalize(hist_b, hist_b)
+        score += cv2.compareHist(hist_a, hist_b, cv2.HISTCMP_CORREL)
+    return score / 3.0
+
+
+# Minimum face similarity for normalization to be accepted.
+# Below this, the normalized image changed the person too much.
+NORMALIZE_SIMILARITY_THRESHOLD = 0.6
+NORMALIZE_MAX_ATTEMPTS = 3
+
+
 def step_normalize_portrait(
     bg_removed_path: str,
     order_dir: str,
@@ -193,9 +251,14 @@ def step_normalize_portrait(
     Also removes props and objects that BG removal may have kept (e.g. held
     objects from recraft), so the character gen step only sees the person.
 
+    Includes a face similarity guard: compares the normalized output to the
+    original using OpenCV histogram correlation. If the person looks too
+    different (below threshold), retries with a new seed. After max attempts,
+    falls back to the original bg_removed image.
+
     Skippable via NORMALIZE_PORTRAIT=0 env var (useful for already-ideal inputs).
 
-    Cost: $0.08 (Kontext Max). Skipped cost: $0.00.
+    Cost: $0.08 per attempt (Kontext Max). Skipped cost: $0.00.
 
     Args:
         bg_removed_path: Path to bg-removed photo (white background).
@@ -206,6 +269,7 @@ def step_normalize_portrait(
         dict with: normalized (path), cost, elapsed_seconds, skipped.
     """
     import os as _os
+    import random
 
     if _os.getenv("NORMALIZE_PORTRAIT", "1") == "0":
         print("  step_normalize_portrait: skipped (NORMALIZE_PORTRAIT=0)")
@@ -219,28 +283,59 @@ def step_normalize_portrait(
     from backends.registry import get_backend
 
     backend = get_backend("flux_kontext_max")
-    start = time.time()
-    gen_result = backend.generate(
-        prompt=NORMALIZE_PROMPT,
-        image_path=bg_removed_path,
-        style_settings={},
-        aspect_ratio="1:1",
-        seed=seed,
-    )
-    elapsed = time.time() - start
-
-    response = requests.get(gen_result.image_url, timeout=120)
-    response.raise_for_status()
-    img = Image.open(BytesIO(response.content))
+    total_cost = 0.0
+    total_elapsed = 0.0
     output_path = str(Path(order_dir) / "normalized.png")
-    img.save(output_path)
 
-    print(f"  Portrait normalized: {img.size[0]}x{img.size[1]} -> {output_path}")
+    current_seed = seed if seed is not None else random.randint(1, 999999)
+
+    for attempt in range(NORMALIZE_MAX_ATTEMPTS):
+        start = time.time()
+        gen_result = backend.generate(
+            prompt=NORMALIZE_PROMPT,
+            image_path=bg_removed_path,
+            style_settings={},
+            aspect_ratio="1:1",
+            seed=current_seed,
+        )
+        elapsed = time.time() - start
+        total_cost += gen_result.cost_estimate
+        total_elapsed += elapsed
+
+        response = requests.get(gen_result.image_url, timeout=120)
+        response.raise_for_status()
+        img = Image.open(BytesIO(response.content))
+        img.save(output_path)
+
+        # Check face similarity
+        similarity = _compare_faces(bg_removed_path, output_path)
+        print(f"  Normalize attempt {attempt + 1}/{NORMALIZE_MAX_ATTEMPTS} "
+              f"(seed={current_seed}): similarity={similarity:.3f}")
+
+        if similarity >= NORMALIZE_SIMILARITY_THRESHOLD:
+            print(f"  Portrait normalized: {img.size[0]}x{img.size[1]} -> {output_path}")
+            return {
+                "normalized": output_path,
+                "cost": round(total_cost, 3),
+                "elapsed_seconds": round(total_elapsed, 1),
+                "skipped": False,
+                "similarity": round(similarity, 3),
+                "attempts": attempt + 1,
+            }
+
+        print(f"  Similarity {similarity:.3f} below threshold {NORMALIZE_SIMILARITY_THRESHOLD}, retrying...")
+        current_seed = random.randint(1, 999999)
+
+    # All attempts failed — fall back to original
+    print(f"  Normalization changed person too much after {NORMALIZE_MAX_ATTEMPTS} attempts, "
+          f"using original bg_removed image")
     return {
-        "normalized": output_path,
-        "cost": gen_result.cost_estimate,
-        "elapsed_seconds": round(elapsed, 1),
-        "skipped": False,
+        "normalized": bg_removed_path,
+        "cost": round(total_cost, 3),
+        "elapsed_seconds": round(total_elapsed, 1),
+        "skipped": True,
+        "skip_reason": "face_similarity_guard",
+        "attempts": NORMALIZE_MAX_ATTEMPTS,
     }
 
 
@@ -280,9 +375,9 @@ def step_generate_character(
     """
     import random
     from backends.registry import get_backend
-    from scene_prompts import get_character_prompt
+    from scene_prompts import get_headshot_prompt
 
-    prompt = get_character_prompt(scene, subject, gender, age_range=age_range)
+    prompt = get_headshot_prompt(scene, age_range=age_range, gender=gender)
     backend = get_backend("flux_kontext_max")
     order_dir = Path(order_dir)
 
@@ -305,6 +400,9 @@ def step_generate_character(
             image_path=bg_removed_path,
             style_settings={},
             seed=s,
+            aspect_ratio="1:1",
+            safety_tolerance=2,
+            prompt_upsampling=False,
         )
         elapsed = time.time() - start
         total_elapsed += elapsed
@@ -334,13 +432,17 @@ def step_costume(
     seed: Optional[int] = None,
     outfit_id: Optional[str] = None,
     subject: Optional[str] = None,
+    age_range: str = "adult",
+    gender: str = "person",
 ) -> dict:
-    """Step 4: Dress the character in a themed costume using Kontext Max.
+    """Step 4: Expand headshot into full-body costumed character using Kontext Max.
 
-    Keeps face, hair, expression identical — only changes clothing. Cost: ~$0.08.
+    Takes the headshot from step 3 and generates a full-body character with
+    a themed costume. Age/gender drive body proportions via {body_hint} slot.
+    Cost: ~$0.08.
 
     Args:
-        character_path: Path to the character image (white background).
+        character_path: Path to the character headshot (white background).
         scene: Scene ID for costume selection.
         order_dir: Path to the order output directory.
         seed: Optional seed for reproducibility.
@@ -349,6 +451,8 @@ def step_costume(
         subject: Subject description (e.g. 'a young man with short dark hair').
             Substituted into the prompt as an explicit hair/identity anchor.
             Falls back to 'a person' if not provided.
+        age_range: 'toddler', 'child', 'teen', or 'adult'. Drives body proportions.
+        gender: 'boy', 'girl', or 'person'. Drives body build hints.
 
     Returns:
         dict with costumed path, cost, and elapsed time.
@@ -360,6 +464,8 @@ def step_costume(
         scene_id=scene,
         subject=subject or "a person",
         outfit_id=outfit_id,
+        age_range=age_range,
+        gender=gender,
     )
     backend = get_backend("flux_kontext_max")
 
@@ -369,6 +475,7 @@ def step_costume(
         image_path=character_path,
         style_settings={},
         seed=seed,
+        aspect_ratio="3:4",
     )
     elapsed = time.time() - start
 
@@ -440,7 +547,7 @@ def step_composite(
     _progress(1, "Generating scene")
     scene_path = str(order_dir / "scene.png")
 
-    import replicate as _replicate
+    from replicate_retry import run_with_retry as _replicate_run
     start = time.time()
     scene_inputs = {
         "prompt": get_scene_prompt(scene),
@@ -452,7 +559,7 @@ def step_composite(
     }
     if seed is not None:
         scene_inputs["seed"] = seed
-    scene_output = _replicate.run("black-forest-labs/flux-2-pro", input=scene_inputs)
+    scene_output = _replicate_run("black-forest-labs/flux-2-pro", input=scene_inputs)
     # Extract URL
     scene_url = scene_output
     if isinstance(scene_output, list):
